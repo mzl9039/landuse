@@ -1,4 +1,4 @@
-# 忽略.classpath
+﻿# 忽略.classpath
 .classpath
 # 忽略.project
 .project
@@ -17,5 +17,4 @@ javac-*
 # 忽略 .idea 文件夹
 .idea/
 # 忽略 idea 的项目文件
-landuse*
-acojava*
+landuse.*
