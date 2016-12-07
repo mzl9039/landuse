@@ -19,7 +19,7 @@ public class Opti {
     public Pheromone ph;
     public ArrayList<Ant> results;
 
-    final int max_grids = 4000;
+    final int max_grids = 2000;
     final int max_ants = 30;
     final int max_loop = 80;
     final int max_try_times = max_loop * max_grids;
@@ -41,7 +41,7 @@ public class Opti {
 
     public static void main(String[] args) throws IOException {
         String relativePath = System.getProperty("user.dir");
-        File path = new File(relativePath + "\\opti");
+        File path = new File(relativePath + "/opti");
         if (!path.exists()) {
             System.out.println("不存在路径" + path);
             System.exit(1);
@@ -52,10 +52,10 @@ public class Opti {
         System.out.println("最大运行次数:" + opti.max_try_times);
         Timer timer = new Timer();
         timer.start_timers();
-        opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.endsWith(".csv"))[0]);
+        opti.inOut = new InOut(path + "/" + path.list((dir, name) -> name.endsWith(".csv"))[0]);
         opti.instance = opti.inOut.read_opti();
         opti.row = opti.col = opti.inOut.gridLength;
-        opti.inOut.printGrids(opti.instance.getGrids(), opti.row, opti.col, opti.inOut.file_path + "\\input.txt");
+        opti.inOut.printGrids(opti.instance.getGrids(), opti.row, opti.col, opti.inOut.file_path + "/input.txt");
         opti.inOut.inputImage(opti.instance.getGrids());
         opti.init();
         int loopTime = 0;
@@ -76,15 +76,18 @@ public class Opti {
         System.out.println("ACO:最优Pareto解集中解的个数：" + opti.results.size());
         // 为本次的输出创建目录
         Format format = new SimpleDateFormat("yyyyMMdd_hhmmss");
-        File outDir = new File(opti.inOut.output_dir + "\\" + format.format(new Date()));
+        File outDir = new File(opti.inOut.output_dir + "/" + format.format(new Date()));
         if (!outDir.exists()) {
             outDir.mkdir();
         }
         for (int i = 0; i < opti.results.size(); i++) {
             // 每个结果要输出为txt和jpg两种结果
-            String filename = outDir.toString() + "\\" + i;
+            String filename = outDir.toString() + "/" + i;
             opti.inOut.printGrids(opti.results.get(i).getTours(), opti.row, opti.col, filename + ".txt");
             opti.inOut.generateImageByValues(opti.results.get(i).getTours(), filename + ".jpg");
+            opti.results.get(i).statTransform =
+                    Grid.statTransform(opti.instance.getGrids(), opti.results.get(i).getTours(), opti.row, opti.col);
+            opti.inOut.printTransform(opti.results.get(i).statTransform, opti.lu8.size(), opti.lu8.size(), filename + "_tf.txt");
         }
         double timeSpend = timer.elapsed_time();
         System.out.println("程序运行用时：" + timeSpend);
@@ -145,7 +148,8 @@ public class Opti {
         if (a.canConvert(type)) {
             double res = 1.0;
             for (Map.Entry<String, Target> e : instance.getTargets().entrySet()) {
-                res *= e.getValue().eta(p, type, grids);
+                double t = e.getValue().eta(p, type, grids);
+                res = res * t;
             }
             return Math.pow(ph.phero[p.x][p.y][Utils.lu8toIdx(type)], alpha) * Math.pow(res, beta);
         } else {
@@ -161,20 +165,21 @@ public class Opti {
     }
 
     public void updatePheros(int loopTime) {
+        System.out.println("第" + loopTime + "次更新信息素");
         ants.forEach(a -> {
             // TODO：评价当前的解是不是非支配解，若是，则加入解集中去
             // 求出 蚂蚁 a 的所有目标的目标函数值
             for (Map.Entry<String, Target> e : instance.getTargets().entrySet()) {
                 a.target.replace(e.getKey(), e.getValue().targetVal(instance.getGrids(), a));
             }
-            // 求出所有目标函数值的乘积
+            // 求出所有目标函数值的和（原来采用乘积，但很容易出现值为0造成目标函数值最后为0,故用和代替）
             for (Map.Entry<String, Double> e : a.target.entrySet()) {
-                a.f *= e.getValue();
+                a.f += e.getValue();
             }
+            a.StatTours();
         });
         // a.f按从大到小排列
         ants.sort((a, b) -> (int)(b.f - a.f));
-        System.out.println("aaa");
         for (int i = 0; i < ants.size()/bestAntsRatio; i++) {
             if (results.size() == 0) {
                 results.add(ants.get(i).clone());
@@ -246,9 +251,10 @@ public class Opti {
         if (type != a.getTours()[p.x][p.y].dlbm8 && a.canConvert(type)) {
             Grid gd = a.getTours()[p.x][p.y];
             // 如果类型是耕地或建设用地，则调整蚂蚁内保存的现有耕地面积和建设用地面积
-            a.adjustArea(gd.dlbm8, type);
-            gd.dlbm8 = type;
-            gd.dlbm4 = Utils.lu8tolu4(type);
+            if (a.adjustArea(gd.dlbm8, type)) {
+                gd.dlbm8 = type;
+                gd.dlbm4 = Utils.lu8tolu4(type);
+            }
         }
     }
 
@@ -353,7 +359,6 @@ public class Opti {
     public int nextPatch(Ant a) {
         Position p = randomSelectPatch(a);
         if (p.x == -1 || p.y == -1) {
-            System.out.println("第" + ants.indexOf(a) + "只蚂蚁走完了全部格网，退出");
             a.setStop(1);
             return 1;
         }
@@ -423,7 +428,7 @@ public class Opti {
         lu8.put(10, "交通运输用地");
         lu8.put(11, "水域及水利设施用地");
         lu8.put(12, "未利用地");
-        lu8.put(20, "建设用地");
+        lu8.put(20, "城镇村及工矿用地");
     }
 
 

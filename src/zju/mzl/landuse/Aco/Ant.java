@@ -1,7 +1,5 @@
 package zju.mzl.landuse.Aco;
 
-import org.omg.PortableServer.THREAD_POLICY_ID;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,8 +58,8 @@ public class Ant {
                         this.tabu[i][j] = 1;
                     } else {
                         int type = Utils.lu8tolu4(this.tours[i][j].dlbm8);
-                        if (type == 1)  this.farmArea += this.tours[i][j].area;
-                        else if (type == 3 && tours[i][j].dlbm8 != 11) this.consLandArea += this.tours[i][j].area;
+                        if (type == 1)  this.farmArea += 1;
+                        else if (type == 3 && tours[i][j].dlbm8 != 11) this.consLandArea += 1;
                     }
                 }
             }
@@ -71,24 +69,26 @@ public class Ant {
     public void initTarget() {
         this.target.clear();
         this.target.put("LSE", 1.0);
+        // TODO 测试仅适宜度目标时的效果
         this.target.put("MPC", 1.0);
     }
 
     // 参数为要转为的类型
-    public boolean canConvert(int type) {
+    public boolean canConvert(int to) {
         Position p = this.currentGrid;
-        if (Utils.canConvert(this.getTours()[p.x][p.y].dlbm8, type, this.getTours()[p.x][p.y])
-                && farmLandCanConvert() && consLandCanConvertTo()) {
+        if (Utils.canConvert(this.getTours()[p.x][p.y].dlbm8, to, this.getTours()[p.x][p.y])
+                && farmLandCanConvert(to) && consLandCanConvertTo(to)) {
             return true;
         }
         return false;
     }
 
     // 可以从农用地转为其它用地
-    private boolean farmLandCanConvert() {
+    private boolean farmLandCanConvert(int to) {
         Position p = this.currentGrid;
         if (this.getTours()[p.x][p.y].dlbm4 == 1) {
-            if (this.farmArea - Utils.gridArea() >= Utils.minFarmArea) {
+            if ((Utils.lu8toIdx(to) != 1 && this.farmArea - 1 >= Utils.minFarmArea)
+                    || Utils.lu8toIdx(to) == 1) {
                 return true;
             } else {
                 return false;
@@ -99,10 +99,11 @@ public class Ant {
     }
 
     // 可以从其它用地转为建设用地
-    private boolean consLandCanConvertTo() {
+    private boolean consLandCanConvertTo(int to) {
         Position p = this.currentGrid;
-        if (this.getTours()[p.x][p.y].dlbm4 == 3) {
-            if (this.consLandArea + Utils.gridArea() <= Utils.maxConsArea) {
+        if (Utils.lu8toIdx(to) == 3) {
+            if ((this.getTours()[p.x][p.y].dlbm4 != 3 && this.consLandArea + 1 <= Utils.maxConsArea)
+                    || this.getTours()[p.x][p.y].dlbm4 == 3) {
                 return true;
             } else {
                 return false;
@@ -112,20 +113,33 @@ public class Ant {
         }
     }
 
-    public void adjustArea(int from, int to) {
-        farmConvert(from);
-        convertToCons(to);
+    public boolean adjustArea(int from, int to) {
+        return farmConvert(from, to) && convertToCons(from, to);
     }
 
-    private void farmConvert(int from) {
-        if (Utils.lu8tolu4(from) == 1) {
-            this.farmArea -= Utils.gridArea();
+    private boolean farmConvert(int from, int to) {
+        if (Utils.lu8tolu4(from) == 1 && Utils.lu8toIdx(to) != 1) {
+            if (this.farmArea-1 >= Utils.minFarmArea) {
+                this.farmArea -= 1;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return true;
         }
     }
 
-    private void convertToCons(int to) {
-        if (Utils.lu8tolu4(to) == 3) {
-            this.consLandArea += Utils.gridArea();
+    private boolean convertToCons(int from, int to) {
+        if (Utils.lu8toIdx(from) != 3 && Utils.lu8tolu4(to) == 3) {
+            if (this.consLandArea+1 <= Utils.maxConsArea) {
+                this.consLandArea += 1;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return true;
         }
     }
 
@@ -199,6 +213,12 @@ public class Ant {
         }
     }
 
+    public void StatTours() {
+        this.statGrids = Grid.statGrids(this.tours, this.tours.length, this.tours.length);
+        System.out.println("蚂蚁的目标函数值f:" + this.f);
+        statGrids.forEach((k, v) -> System.out.print("k:" + k + "; v:" + v + "\t\t"));
+    }
+
     private Position currentGrid;
     public int updated;                     // 用来记录更新过的格网的数目
     private int stop;                       // 用来标记是否所有的格网都访问过了
@@ -208,5 +228,6 @@ public class Ant {
     public double f;
     public HashMap<String, Double> target;
     public double farmArea, consLandArea;       // 农用地面积，建设用地面积，注意农用地有最小值，建设用地有最大值
-
+    public HashMap<Integer, Integer> statGrids;
+    public int statTransform[][];
 }

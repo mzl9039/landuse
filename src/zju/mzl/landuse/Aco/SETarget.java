@@ -1,7 +1,5 @@
 package zju.mzl.landuse.Aco;
 
-import javafx.geometry.Pos;
-
 /**
  * 适宜性评价相关的目标函数
  * Created by mzl on 2016/11/20.
@@ -28,16 +26,33 @@ public class SETarget extends Target {
 
     @Override
     public double targetVal(Grid[][] olds, Ant a) {
-        double res = 0.0;
-        int row, col;
-        row = col = olds.length;
-        for (int i = 0; i < row; i++) {
-            for (int j = 0; j < col; j++) {
-                if (olds[i][j] != null && olds[i][j].dlbm8 != a.getTours()[i][j].dlbm8) {
-                    res += eta(new Position(i, j), a.getTours()[i][j].dlbm8, a.getTours());
-                }
-            }
-        }
-        return res;
+        return super.targetVal(olds, a);
     }
+
+    public double EtaNotConsiderLuComp(Position p, int type, Grid grids[][]) {
+        if (grids[p.x][p.y] != null) {
+            return this.getSuits()[p.x][p.y].valMap.get(type);
+        } else {
+            return 0;
+        }
+    }
+
+    public double EtaConsiderLuComp(Position p, int type, Grid grids[][]) {
+        if (grids[p.x][p.y] != null) {
+            return this.getSuit() * this.getSuits()[p.x][p.y].valMap.get(type)
+                    + this.getComp() * luComp(p, type, grids);
+        } else {
+            return 0;
+        }
+    }
+
+    public Suits[][] getSuits() {
+        return suits;
+    }
+
+    public void setSuits(Suits[][] suits) {
+        this.suits = suits;
+    }
+
+    private Suits[][] suits;
 }

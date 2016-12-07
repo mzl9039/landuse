@@ -4,7 +4,7 @@ package zju.mzl.landuse.Aco;
  * Created by mzl on 2016/11/21.
  */
 public class Pheromone {
-    final double min_phero = 1 / Utils.gridArea();
+    final double min_phero = 0.5;
     final double max_phero = 12;
     double rho = 0.1;   // 信息素挥发系数，刚开始时挥发系数较小，随着时间推移，挥发系数越来越大，加快收敛
     int row = 0;

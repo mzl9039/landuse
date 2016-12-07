@@ -1,5 +1,8 @@
 package zju.mzl.landuse.Aco;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Created by mzl on 2016/11/17.
  */
@@ -48,6 +51,36 @@ public class Utils {
         }
     }
 
+    public static int lu4toIdx(int type) {
+        switch (type) {
+            case 1:
+                return 0;
+            case 2:
+                return 2;
+            case 3:
+                return 3;
+            case 4:
+                return 1;
+            default:
+                return -1;
+        }
+    }
+
+    public static int mpcLu4toIdx(int lu4, int lu8) {
+        switch (lu4) {
+            case 1:
+                return 0;
+            case 2:
+                return 2;
+            case 3:
+                return lu8 != 12 ? 3 : 4;
+            case 4:
+                return 1;
+            default:
+                return -1;
+        }
+    }
+
     public static int idxtolu8(int idx) {
         switch (idx) {
             case 0:
@@ -92,16 +125,37 @@ public class Utils {
     }
 
     // type是土地利用8大类的类型，只有耕地、园地、林地、草地可以转换为其它地类
-    // 建设用地不能转换为其它地类
+    // 除未利用地的建设用地不能转换为其它地类
+    // 未利用地只能转为建设用地
     public static boolean canConvert(int from, int to, Grid grid) {
-        if (from > 4) return false;
-        if (from == 3 && to > 4) return false;
+        // 添加自己的限制条件
+        if (Utils.lu8tolu4(from) == Utils.lu8tolu4(to)) return false;
+        // 若当前为林地，要转为农用地，且坡度大于10,则不做转化
+        if (from == 3 && to <= 2 && grid.slope >= 10) return false;
+        // 若要转为林地，且坡度小于3,则不做转化
+        if ((to == 3 || to == 2) && grid.slope < 3) return false;
+
+        if (grid.constraint != 0) return false;
+        // 除未利用地外的建设用地不能转为其它类型
+        if (from > 4 && from != 12) return false;
+        // 坡度大于25度时，不能转为耕地
         if ((to == 1 || to == 2) && grid.slope >= 25) return false;
+        // 任何类型都不能转为未利用地
+        if (to == 12) return false;
         return true;
     }
 
     public static double gridArea() {
         return distance * distance;
+    }
+
+    public static int[] mapToArray(HashMap<Integer, String> lu) {
+        int lus[] = new int[lu.size()], idx = 0;
+        for (Map.Entry<Integer, String> e : lu.entrySet()) {
+            lus[idx] = e.getKey();
+            idx++;
+        }
+        return lus;
     }
 
     public static double distance = 0;

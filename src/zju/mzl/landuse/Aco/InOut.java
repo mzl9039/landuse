@@ -1,5 +1,7 @@
 package zju.mzl.landuse.Aco;
 
+import sun.text.resources.iw.FormatData_iw_IL;
+
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -49,9 +51,9 @@ public class InOut {
         // 从文件名获取格网长度（如200米）
         this.distance = Integer.parseInt(this.NAME.split("_")[2]);
         this.file_path = file.getParent();
-        this.input_target_path = this.file_path + "\\target";
-        this.output_dir = this.file_path + "\\output";
-        this.input_image = this.file_path + "\\input_" + this.NAME + ".jpg";
+        this.input_target_path = this.file_path + "/target";
+        this.output_dir = this.file_path + "/output";
+        this.input_image = this.file_path + "/input_" + this.NAME + ".jpg";
     }
 
     public Problem read_opti() throws IOException {
@@ -69,8 +71,13 @@ public class InOut {
         int[] nums = new int[2];
         nums[0] = nums[1] = this.gridLength;
         instance.setNum(nums);
+        // 土地适宜性目标
         Target target = readLSETarget(opti_file_name);
         instance.getTargets().put(target.getName(), target);
+        // 最小规划成本目标
+        // TODO 测试仅适宜度目标时的效果
+        Target mpcTarget = initMPCTarget();
+        instance.getTargets().put(mpcTarget.getName(), mpcTarget);
         // 读取其它的目标
         File path = new File(this.input_target_path);
         File files[] = path.listFiles();
@@ -84,6 +91,36 @@ public class InOut {
             }
         }
         return instance;
+    }
+
+    // 初始化最小规划成本目标
+    public Target initMPCTarget() {
+        Target target = new PCTarget();
+        target.setName("MPC");  // 最小规划成本
+        target.setLuType(8);
+        target.considerLuComp = true;
+        target.setType(2);
+        target.setSuit(0.5);
+        // 一共八大类，所有是八
+        double t[][] = new double[8][8];
+        // t[0]代表农用地, t[1]代表绿地，t[2]代表林地，t[3]代表建设用地，t[4]代表未利用地
+        t[0][1] = 0.7;  t[0][2] = 0.7;  t[0][3] = 0.5;  t[0][4] = 0.1;
+        t[0][5] = 0.5;  t[0][7] = 0.1;
+        t[1][0] = 0.7;  t[1][2] = 0.9;  t[1][3] = 0.9;  t[1][4] = 0.9;
+        t[1][5] = 0.7;  t[1][7] = 0.3;
+        t[2][0] = 0.9;  t[2][1] = 0.9;  t[2][3] = 0.5;  t[2][4] = 0.9;
+        t[2][5] = 0.9;  t[2][7] = 0.9;
+        t[3][0] = 0.1;  t[3][1] = 0.3;  t[3][2] = 0.7;  t[3][4] = 0.1;
+        t[3][5] = 0.5;  t[3][7] = 0.1;
+        t[6][0] = 0.3;  t[6][1] = 0.9;  t[6][2] = 0.7;  t[6][3] = 0.9;
+        t[6][4] = 0.1;  t[6][5] = 0.3;  t[6][7] = 0.1;
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                if (t[i][j] == 0) t[i][j] = 10000;    // 很高的成本，不鼓励转换
+            }
+        }
+        ((PCTarget)target).setSuits(t);
+        return target;
     }
 
     public Grid[][] readGrid(String opti_file_name) throws IOException {
@@ -102,6 +139,8 @@ public class InOut {
                 } else if (line.startsWith("DIS")) {
                     this.distance = Integer.parseInt(line.split(",")[1]);
                     Utils.distance = this.distance;
+                    Utils.minFarmArea /= Utils.distance * Utils.distance;
+                    Utils.maxConsArea /= Utils.distance * Utils.distance;
                 } else {
                     String[] gridInfo = line.split(",");
                     Grid gd = new Grid();
@@ -143,11 +182,13 @@ public class InOut {
     public Target readLSETarget(String opti_file_name) throws IOException {
         Target target = readTarget(opti_file_name);
         target.setName("LSE");  // 土地利用适宜性评价：landuse suitability evaluation
-        target.setType(4);      // 土地利用适宜性评价是4大类的
+        target.setLuType(4);      // 土地利用适宜性评价是4大类的
         target.setSuit(0.5);    // 设置土地利用适宜性与土地利用强度的权重
+        target.setType(1);      // 适宜性目标
         return target;
     }
 
+    // 这个函数有bug，只能读取适宜度SE类型的目标，对PC和TF类型的目标是无法读取的
     public Target readTarget(String filename) throws IOException {
         Reader reader = null;
         BufferedReader bufferedReader = null;
@@ -168,21 +209,23 @@ public class InOut {
                         target = new SETarget();
                     } else if (line == "PC") {
                         target = new PCTarget();
+                    } else if (line == "TF") {
+                        target = new TFTarget();
                     }
                 }else if (line.startsWith("NAME")) {
                     target.setName(line.split("[:]")[1]);
                 } else if (line.startsWith("LAND_USE_TYPE")) {
-                    target.setType(Integer.parseInt(line.split("[:]")[1]));
+                    target.setLuType(Integer.parseInt(line.split("[:]")[1]));
                 } else if (line.startsWith("SUIT")) {
                     target.setSuit(Double.parseDouble(line.split("[:]")[1]));
                 } else if (line.startsWith("DIS")) {
                 } else {
                     String[] gridInfo = line.split("[,]");
                     Suits suits = new Suits();
-                    suits.valMap.put(1, Double.parseDouble(gridInfo[5]));   // 农用地适宜度
-                    suits.valMap.put(4, Double.parseDouble(gridInfo[6]));   // 林地适宜度
-                    suits.valMap.put(3, Double.parseDouble(gridInfo[7]));   // 建设用地适宜度
-                    suits.valMap.put(2, Double.parseDouble(gridInfo[8]));   // 绿地适宜度
+                    suits.valMap.put(1, Double.parseDouble(gridInfo[5]) / 100);   // 农用地适宜度
+                    suits.valMap.put(4, Double.parseDouble(gridInfo[6]) / 100);   // 林地适宜度
+                    suits.valMap.put(3, Double.parseDouble(gridInfo[7]) / 100);   // 建设用地适宜度
+                    suits.valMap.put(2, Double.parseDouble(gridInfo[8]) / 100);   // 绿地适宜度
                     lat = Double.parseDouble(gridInfo[10]);
                     lon = Double.parseDouble(gridInfo[11]);
                     Position p = geo2pos(lat, lon);
@@ -190,7 +233,7 @@ public class InOut {
                 }
                 line = bufferedReader.readLine();
             }
-            target.setSuits(targetSuits);
+            ((SETarget)target).setSuits(targetSuits);
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -219,16 +262,26 @@ public class InOut {
         Color color = null;
         switch (type) {
             case 1:
-                color = Color.yellow;   // 农用地
+                color = Color.yellow;   // 耕地
                 break;
             case 2:
-                color = Color.green;    // 绿地
+                color = Color.cyan;     // 园地
                 break;
             case 3:
-                color = Color.magenta;  // 建设用地
+                color = Color.green;    // 林地
                 break;
             case 4:
-                color = Color.cyan;     // 森林
+                color = Color.darkGray; // 草地
+                break;
+            case 10:
+            case 11:
+                color = Color.blue;     // 交通/水利用地
+                break;
+            case 12:
+                color = Color.black;    // 未利用地
+                break;
+            case 20:
+                color = Color.magenta;  // 村镇及工矿用地
                 break;
             default:
                 color = Color.white;
@@ -249,7 +302,7 @@ public class InOut {
         Color color = null;
         for (int i = 0; i < this.gridLength; i++) {
             for (int j = 0; j < this.gridLength; j++) {
-                color = setColor(tours[i][j] == null ? 0 : tours[i][j].dlbm4);
+                color = setColor(tours[i][j] == null ? 0 : tours[i][j].dlbm8);
                 graphics2d.setColor(color);
                 graphics2d.fillRect(5*j, 5*i, 5, 5);
             }
@@ -299,5 +352,35 @@ public class InOut {
             writer.close();
         }
 
+    }
+
+    public void printTransform(int transform[][], int row, int col, String filename) throws IOException {
+        Writer writer = null;
+        BufferedWriter bufferedWriter = null;
+        try {
+            writer = new OutputStreamWriter(new FileOutputStream(filename), "GBK");
+            bufferedWriter = new BufferedWriter(writer);
+            int lu8[] = {1, 2, 3, 4, 10, 11, 12, 20};
+            for (int i = 0; i < row + 1; i++) {
+                if (i == 0) {
+                    for (int j = 0; j < col; j++) {
+                        if (j != col-1) bufferedWriter.write(lu8[j] + ",");
+                        else bufferedWriter.write(lu8[j] + "");
+                    }
+                    bufferedWriter.newLine();
+                } else {
+                    for (int j = 0; j < col; j++) {
+                        if (j != col-1) bufferedWriter.write(transform[i-1][j] + ",");
+                        else bufferedWriter.write(transform[i-1][j] + "");
+                    }
+                    bufferedWriter.newLine();
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            bufferedWriter.close();
+            writer.close();
+        }
     }
 }

@@ -18,3 +18,5 @@ javac-*
 .idea/
 # 忽略 idea 的项目文件
 landuse.*
+#忽略 out 文件夹
+out/

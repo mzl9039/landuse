@@ -10,17 +10,18 @@ public abstract class Target implements ITarget {
         int row, col;
         row = col = grids.length;
         double sametype = 0, windowNum = 0;
-        for (int i = p.x-1; i <= p.x+1; i++) {
-            for (int j = p.y-1; j <= p.y+1; j++) {
+        // TODO 将3×3窗口改为5×5窗口试试
+        for (int i = p.x-2; i <= p.x+2; i++) {
+            for (int j = p.y-2; j <= p.y+2; j++) {
                 if (i < 0 || j < 0 || i >= row || j >= col || (i == p.x && j == p.y) || grids[i][j] == null) {
                     continue;
                 } else {
                     windowNum += 1;
-                    if (this.getType() == 8) {
+                    if (this.getLuType() == 8) {
                         if (grids[i][j].dlbm8 == type) {
                             sametype += 1;
                         }
-                    } else if (this.getType() == 4) {
+                    } else if (this.getLuType() == 4) {
                         if (grids[i][j].dlbm4 == type) {
                             sametype += 1;
                         }
@@ -32,25 +33,16 @@ public abstract class Target implements ITarget {
     }
 
     public double EtaNotConsiderLuComp(Position p, int type, Grid grids[][]) {
-        if (grids[p.x][p.y] != null) {
-            return this.getSuits()[p.x][p.y].valMap.get(type);
-        } else {
-            return 0;
-        }
+        return 0;
     }
 
     public double EtaConsiderLuComp(Position p, int type, Grid grids[][]) {
-        if (grids[p.x][p.y] != null) {
-            return this.getSuit() * this.getSuits()[p.x][p.y].valMap.get(type)
-                    + this.getComp() * luComp(p, type, grids);
-        } else {
-            return 0;
-        }
+        return 0;
     }
 
     @Override
     public double eta(Position p, int type, Grid[][] grids) {
-        if(this.type == 4) {
+        if(this.luType == 4) {
             type = Utils.lu8tolu4(type);
             // 如果是建设用地，则不进行转换，即转换概率为0
             if (type == 3) {
@@ -70,7 +62,18 @@ public abstract class Target implements ITarget {
 
     @Override
     public double targetVal(Grid olds[][], Ant a) {
-        return 0.0;
+        double res = 0.0;
+        int row, col;
+        row = col = olds.length;
+        for (int i = 0; i < row; i++) {
+            for (int j = 0; j < col; j++) {
+                if (olds[i][j] != null && olds[i][j].dlbm8 != a.getTours()[i][j].dlbm8) {
+                    double t = eta(new Position(i, j), a.getTours()[i][j].dlbm8, a.getTours());
+                    res = res + t;
+                }
+            }
+        }
+        return res;
     }
 
     public String getName() {
@@ -81,22 +84,22 @@ public abstract class Target implements ITarget {
         this.name = name;
     }
 
+    public int getLuType() {
+        return luType;
+    }
+
+    public void setLuType(int luType) {
+        if (luType == 4 || luType == 8) {
+            this.luType = luType;
+        }
+    }
+
     public int getType() {
         return type;
     }
 
     public void setType(int type) {
-        if (type == 4 || type == 8) {
-            this.type = type;
-        }
-    }
-
-    public Suits[][] getSuits() {
-        return suits;
-    }
-
-    public void setSuits(Suits[][] suits) {
-        this.suits = suits;
+        this.type = type;
     }
 
     public double getSuit() {
@@ -129,9 +132,9 @@ public abstract class Target implements ITarget {
     }
 
     private String name;        // 目标名称
-    private int type;           // 对应的土地利用类型，是4大类还是8大类，只能取 4 或 8
+    private int luType;           // 对应的土地利用类型，是4大类还是8大类，只能取 4 或 8
     private double suit, comp;  // 本适宜性的权重和土地利用强度的权重，考虑 suit + comp = 1
-    private Suits[][] suits;
+    private int type;           // 目标类型
     public double targetVal;    // 目标函数的最终目标函数值
     protected boolean considerLuComp = true;    // 计算时考虑土地利用强度
 }
