@@ -1,5 +1,7 @@
 package zju.mzl.landuse.Aco;
 
+import javafx.geometry.Pos;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -8,12 +10,17 @@ import java.util.Map;
  */
 public class Ant {
 
-    public Position getCurrentGrid() {
-        return currentGrid;
+    public Position getCurrentPos() {
+        return currentPos;
     }
 
-    public void setCurrentGrid(Position currentGrid) {
-        this.currentGrid = currentGrid;
+    public void setCurrentPos(Position currentPos) {
+        this.currentPos = currentPos;
+    }
+
+    public Grid getCurGrid() {
+        Position p = this.currentPos;
+        return this.tours[p.x][p.y];
     }
 
     public int getStop() {
@@ -75,7 +82,7 @@ public class Ant {
 
     // 参数为要转为的类型
     public boolean canConvert(int to) {
-        Position p = this.currentGrid;
+        Position p = this.currentPos;
         if (Utils.canConvert(this.getTours()[p.x][p.y].dlbm8, to, this.getTours()[p.x][p.y])
                 && farmLandCanConvert(to) && consLandCanConvertTo(to)) {
             return true;
@@ -85,7 +92,7 @@ public class Ant {
 
     // 可以从农用地转为其它用地
     private boolean farmLandCanConvert(int to) {
-        Position p = this.currentGrid;
+        Position p = this.currentPos;
         if (this.getTours()[p.x][p.y].dlbm4 == 1) {
             if ((Utils.lu8toIdx(to) != 1 && this.farmArea - 1 >= Utils.minFarmArea)
                     || Utils.lu8toIdx(to) == 1) {
@@ -100,7 +107,7 @@ public class Ant {
 
     // 可以从其它用地转为建设用地
     private boolean consLandCanConvertTo(int to) {
-        Position p = this.currentGrid;
+        Position p = this.currentPos;
         if (Utils.lu8toIdx(to) == 3) {
             if ((this.getTours()[p.x][p.y].dlbm4 != 3 && this.consLandArea + 1 <= Utils.maxConsArea)
                     || this.getTours()[p.x][p.y].dlbm4 == 3) {
@@ -177,7 +184,7 @@ public class Ant {
         a.consLandArea = d1.doubleValue();
         Double d2 = new Double(this.farmArea);
         a.farmArea = d2.doubleValue();
-        a.currentGrid = this.currentGrid;
+        a.currentPos = this.currentPos;
         Double d3 = new Double(this.f);
         a.f = d3.doubleValue();
         return a;
@@ -219,7 +226,8 @@ public class Ant {
         statGrids.forEach((k, v) -> System.out.print("k:" + k + "; v:" + v + "\t\t"));
     }
 
-    private Position currentGrid;
+    private Position currentPos;
+    public Position patchCenter;
     public int updated;                     // 用来记录更新过的格网的数目
     private int stop;                       // 用来标记是否所有的格网都访问过了
     private int tabu[][];                   // 禁忌表，即已经访问过的格网

@@ -129,11 +129,13 @@ public class Utils {
     // 未利用地只能转为建设用地
     public static boolean canConvert(int from, int to, Grid grid) {
         // 添加自己的限制条件
+        if (Utils.lu8tolu4(to) == 3 && to != 20) return false;
         if (Utils.lu8tolu4(from) == Utils.lu8tolu4(to)) return false;
         // 若当前为林地，要转为农用地，且坡度大于10,则不做转化
         if (from == 3 && to <= 2 && grid.slope >= 10) return false;
         // 若要转为林地，且坡度小于3,则不做转化
         if ((to == 3 || to == 2) && grid.slope < 3) return false;
+        if (Utils.lu8tolu4(to) == 3 && grid.height > 100) return false;
 
         if (grid.constraint != 0) return false;
         // 除未利用地外的建设用地不能转为其它类型

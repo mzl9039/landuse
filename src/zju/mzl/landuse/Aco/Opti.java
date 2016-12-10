@@ -1,5 +1,7 @@
 package zju.mzl.landuse.Aco;
 
+import sun.java2d.loops.GeneralRenderer;
+
 import java.io.*;
 import java.text.Format;
 import java.text.SimpleDateFormat;
@@ -11,7 +13,6 @@ import java.util.*;
 public class Opti {
     public HashMap<Integer, String> lu8 = new HashMap<>();
     public HashMap<Integer, String> lu4 = new HashMap<>();
-    public HashMap<Integer, String> ghgzq = new HashMap<>();
     public int row;
     public int col;
     public Problem instance;
@@ -19,11 +20,10 @@ public class Opti {
     public Pheromone ph;
     public ArrayList<Ant> results;
 
-    final int max_grids = 2000;
+    final int max_grids = 4800;
     final int max_ants = 30;
     final int max_loop = 80;
     final int max_try_times = max_loop * max_grids;
-    final int bestAntsRatio = 6;
 
     // alpha 和 beta也可以采用自适应方式来调节，即开始时侧重全局搜索，
     // 后期增加 alpha 的值，以提高收敛速度
@@ -56,7 +56,7 @@ public class Opti {
         opti.instance = opti.inOut.read_opti();
         opti.row = opti.col = opti.inOut.gridLength;
         opti.inOut.printGrids(opti.instance.getGrids(), opti.row, opti.col, opti.inOut.file_path + "/input.txt");
-        opti.inOut.inputImage(opti.instance.getGrids());
+        //opti.inOut.inputImage(opti.instance.getGrids());
         opti.init();
         int loopTime = 0;
         while (curTryTime++ < opti.max_try_times) {
@@ -93,27 +93,22 @@ public class Opti {
         System.out.println("程序运行用时：" + timeSpend);
     }
 
-    public void init() throws IOException {
-        // 初始化蚁群
-        ants = new ArrayList<>(max_ants);
+    public void initAnts() {
+        ants.clear();
         for (int i = 0; i < max_ants; i++) {
             Ant a = new Ant(0, 0, new int[row][col], 1);
             a.setTours(this.instance.gridsClone());
             a.adjustAntByGrids();
-            a.setCurrentGrid(randomSelectPatch(a));
+            a.setCurrentPos(randomSelectPatch(a));
+            a.patchCenter = a.getCurrentPos();
             for (Map.Entry<String, Target> e : instance.getTargets().entrySet()) {
                 a.target.put(e.getKey(), 0.0);
             }
             ants.add(a);
         }
 
-        // 初始化信息素矩阵
-        // TODO:检查 蚁群的tabu 矩阵是否被初始化
-        ph = new Pheromone(row, col, lu8.size());
-        ph.initPhero();
-
         ants.forEach(a -> {
-            Position p = a.getCurrentGrid();
+            Position p = a.getCurrentPos();
             a.getTabu()[p.x][p.y] = 1;
             a.updated++;
             updateGridType(a, chooseGridType(a));
@@ -121,21 +116,19 @@ public class Opti {
         });
     }
 
-    public void restartAnts() {
-        ants.forEach(a -> {
-            a.restartAnt(1, 0, new int[row][col], 1);
-            a.setTours(instance.gridsClone());
-            a.adjustAntByGrids();
-            a.setCurrentGrid(randomSelectPatch(a));
-            for (Map.Entry<String, Target> e : instance.getTargets().entrySet()) {
-                a.target.put(e.getKey(), 0.0);
-            }
+    public void init() throws IOException {
+        // 初始化信息素矩阵
+        // TODO:检查 蚁群的tabu 矩阵是否被初始化
+        ph = new Pheromone(row, col, lu8.size());
+        ph.initPhero();
 
-            Position p = a.getCurrentGrid();
-            a.getTabu()[p.x][p.y] = 1;
-            updateGridType(a, chooseGridType(a));
-            initPatchNeighbour(a);
-        });
+        // 初始化蚁群
+        ants = new ArrayList<>(max_ants);
+        initAnts();
+    }
+
+    public void restartAnts() {
+        initAnts();
     }
 
     //////////////////////////////////////////////////////////////
@@ -143,13 +136,17 @@ public class Opti {
     // 计算格网 m,n 处的启发信息值，在选择格网类型时使用
     // 由于有多个目标函数，所以多个目标函数的局部目标值之间，用乘积结果转为单目标
     double heuristic(Ant a, Pheromone ph, int type) {
-        Position p = a.getCurrentGrid();
+        Position p = a.getCurrentPos();
         Grid grids[][] = a.getTours();
         if (a.canConvert(type)) {
             double res = 1.0;
             for (Map.Entry<String, Target> e : instance.getTargets().entrySet()) {
                 double t = e.getValue().eta(p, type, grids);
                 res = res * t;
+            }
+            Grid gd = a.getCurGrid();
+            if (gd.encourageFactor > 0) {
+                res = gd.adjustResByEncourageFactor(res, type);
             }
             return Math.pow(ph.phero[p.x][p.y][Utils.lu8toIdx(type)], alpha) * Math.pow(res, beta);
         } else {
@@ -180,7 +177,7 @@ public class Opti {
         });
         // a.f按从大到小排列
         ants.sort((a, b) -> (int)(b.f - a.f));
-        for (int i = 0; i < ants.size()/bestAntsRatio; i++) {
+        for (int i = 0; i < ants.size(); i++) {
             if (results.size() == 0) {
                 results.add(ants.get(i).clone());
             } else {
@@ -206,8 +203,7 @@ public class Opti {
 
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < col; j++) {
-                // n 只蚂蚁，只取最优的 1/6 只蚂蚁的解决方案更新信息素
-                for (int k = 0; k < ants.size()/bestAntsRatio; k++) {
+                for (int k = 0; k < ants.size(); k++) {
                     Ant a = ants.get(k);
                     for (int l = 0; l < lu8.size(); l++) {
                         ph.updatePheros(new Position(i, j), l, a, loopTime);
@@ -247,7 +243,7 @@ public class Opti {
 
     // 更新格网的类型信息，type 为要变成的类型
     public void updateGridType(Ant a, int type) {
-        Position p = a.getCurrentGrid();
+        Position p = a.getCurrentPos();
         if (type != a.getTours()[p.x][p.y].dlbm8 && a.canConvert(type)) {
             Grid gd = a.getTours()[p.x][p.y];
             // 如果类型是耕地或建设用地，则调整蚂蚁内保存的现有耕地面积和建设用地面积
@@ -260,7 +256,7 @@ public class Opti {
 
     // 更新格网信息
     public void updateGrid(Ant a, Position p, int type) {
-        a.setCurrentGrid(p);
+        a.setCurrentPos(p);
         a.updated++;
         updateGridType(a, type);
         a.getTabu()[p.x][p.y] = 1;          // 访问过了
@@ -269,7 +265,7 @@ public class Opti {
     // 根据最大概率求格网类型，若最大概率的类型与当前格网类型不一致，
     // 则采用轮盘赌的形式确定一个类型，只在初始化斑块的第一个格网时用到
     public int chooseGridType(Ant a) {
-        int m = a.getCurrentGrid().x, n = a.getCurrentGrid().y;
+        int m = a.getCurrentPos().x, n = a.getCurrentPos().y;
         // 若当前位置处为建设用地，由于建设用地不能转为其它用地，所以直接返回原用地类型
         if (Utils.lu8tolu4(a.getTours()[m][n].dlbm8) == 3) {
             return a.getTours()[m][n].dlbm8;
@@ -310,7 +306,7 @@ public class Opti {
 
     // 根据最大概率求格网的类型，不考虑概率类型与原来的格网是否一致
     public int chooseGridTypeByMaxProbility(Ant a) {
-        Position p = a.getCurrentGrid();
+        Position p = a.getCurrentPos();
         // 若当前位置处为建设用地，由于建设用地不能转为其它用地，所以直接返回原用地类型
         if (Utils.lu8tolu4(a.getTours()[p.x][p.y].dlbm8) == 3) {
             return a.getTours()[p.x][p.y].dlbm8;
@@ -331,7 +327,7 @@ public class Opti {
 
     // 添加到斑块的邻居列表里
     public void neighbours(Ant a) {
-        Position p = a.getCurrentGrid();
+        Position p = a.getCurrentPos();
         int type = a.getTours()[p.x][p.y].dlbm8;
         for (int i = p.x-1; i <= p.x+1 ; i++) {
             for (int j = p.y-1; j <= p.y+1 ; j++) {
@@ -339,7 +335,9 @@ public class Opti {
                     continue;
                 } else {
                     String str = Utils.pos2str(new Position(i, j));
-                    if (!a.getNeighbours().containsKey(str)) {
+                    // 只检查斑块周边5×5的邻居
+                    if (!a.getNeighbours().containsKey(str) &&
+                            Math.abs(i - a.patchCenter.x) < 1 && Math.abs(j - a.patchCenter.y) < 1) {
                         a.getNeighbours().put(str, heuristic(a, ph, type));
                     }
                 }
@@ -358,6 +356,7 @@ public class Opti {
     /* 蚂蚁在行进的相关函数，如果邻居为空，则走下一个斑块，否则走下一个邻居 */
     public int nextPatch(Ant a) {
         Position p = randomSelectPatch(a);
+        a.patchCenter = p;
         if (p.x == -1 || p.y == -1) {
             a.setStop(1);
             return 1;
@@ -409,7 +408,7 @@ public class Opti {
         Position p;
         for (Ant a : ants) {
             if (a.getStop() != 1) {
-                p = a.getCurrentGrid();
+                p = a.getCurrentPos();
                 nextGrid(a, a.getTours()[p.x][p.y].dlbm8);
                 moving++;
             }

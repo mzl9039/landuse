@@ -4,11 +4,13 @@ import sun.text.resources.iw.FormatData_iw_IL;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.geom.Arc2D;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.DoubleAccumulator;
 
 /**
  * Created by mzl on 2016/11/17.
@@ -150,8 +152,10 @@ public class InOut {
                     gd.dlbm8 = Integer.parseInt(gridInfo[3]);
                     gd.constraint = Integer.parseInt(gridInfo[4]);
                     gd.dlbm4 = Integer.parseInt(gridInfo[9]);
-                    gd.lat = Double.parseDouble(gridInfo[10]);
-                    gd.lon = Double.parseDouble(gridInfo[11]);
+                    gd.encourageFactor = Double.parseDouble(gridInfo[10]) / 100;
+                    gd.height = Double.parseDouble(gridInfo[11]);
+                    gd.lat = Double.parseDouble(gridInfo[12]);
+                    gd.lon = Double.parseDouble(gridInfo[13]);
                     if (gd.lon < this.minLon) this.minLon = gd.lon;
                     if (gd.lat < this.minLat) this.minLat = gd.lat;
                     if (gd.lon > this.maxLon) this.maxLon = gd.lon;
@@ -226,8 +230,8 @@ public class InOut {
                     suits.valMap.put(4, Double.parseDouble(gridInfo[6]) / 100);   // 林地适宜度
                     suits.valMap.put(3, Double.parseDouble(gridInfo[7]) / 100);   // 建设用地适宜度
                     suits.valMap.put(2, Double.parseDouble(gridInfo[8]) / 100);   // 绿地适宜度
-                    lat = Double.parseDouble(gridInfo[10]);
-                    lon = Double.parseDouble(gridInfo[11]);
+                    lat = Double.parseDouble(gridInfo[12]);
+                    lon = Double.parseDouble(gridInfo[13]);
                     Position p = geo2pos(lat, lon);
                     targetSuits[p.x][p.y] = suits;
                 }
@@ -271,11 +275,13 @@ public class InOut {
                 color = Color.green;    // 林地
                 break;
             case 4:
-                color = Color.darkGray; // 草地
+                color = Color.green; // 草地
                 break;
             case 10:
+                color = Color.darkGray;// 交通
+                break;
             case 11:
-                color = Color.blue;     // 交通/水利用地
+                color = Color.blue;     // 水利用地
                 break;
             case 12:
                 color = Color.black;    // 未利用地

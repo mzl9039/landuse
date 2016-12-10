@@ -6,6 +6,7 @@ package zju.mzl.landuse.Aco;
 public class Pheromone {
     final double min_phero = 0.5;
     final double max_phero = 12;
+    final double init_phero = 1;
     double rho = 0.1;   // 信息素挥发系数，刚开始时挥发系数较小，随着时间推移，挥发系数越来越大，加快收敛
     int row = 0;
     int col = 0;
@@ -13,7 +14,7 @@ public class Pheromone {
     public double phero[][][];
     // 信息素自适用调节系数阈值
     final double T1 = 10, T2 = 30, T3 = 50;
-    final double Q1 = 0.5, Q2 = 1.5, Q3 = 3, Q4 = 4.5;
+    final double Q1 = 0.05, Q2 = 0.15, Q3 = 0.3, Q4 = 0.45;
 
     public Pheromone(int row, int col, int luTypeNum) {
         this.row = row;
@@ -26,7 +27,7 @@ public class Pheromone {
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < col; j++) {
                 for (int k = 0; k < num; k++) {
-                    phero[i][j][k] = min_phero;
+                    phero[i][j][k] = init_phero;
                 }
             }
         }
@@ -35,7 +36,7 @@ public class Pheromone {
     // TODO:这里要定义一个自适应信息素函数，并依此调整信息素矩阵在位置 p 处的信息素值
     public void updatePheros(Position p, int type, Ant a, int loopTime) {
         phero[p.x][p.y][type] = phero[p.x][p.y][type] <= min_phero ? min_phero : (1 - rho) * phero[p.x][p.y][type];
-        phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime) * a.f / 100000;
+        phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime);
         checkPheromoneLeft(p, type);
     }
 

@@ -14,6 +14,8 @@ public class Grid {
     int dlbm8;
     int dlbm4;
     int constraint;
+    double encourageFactor;
+    double height;
     double lon, lat;
     int x, y;
 
@@ -27,6 +29,8 @@ public class Grid {
         grid.dlbm8 = this.dlbm8;
         grid.dlbm4 = this.dlbm4;
         grid.constraint = this.constraint;
+        grid.encourageFactor = this.encourageFactor;
+        grid.height = this.height;
         grid.lon = this.lon;
         grid.lat = this.lat;
         grid.x = this.x;
@@ -74,5 +78,14 @@ public class Grid {
             }
         }
         return stat;
+    }
+
+    public double adjustResByEncourageFactor(double res, int type) {
+        if (Utils.lu8tolu4(type) == 3) {
+            //return res * (((int)(10 * this.encourageFactor)) / 2);
+            return res * (1 + this.encourageFactor);
+        } else {
+            return res;
+        }
     }
 }
