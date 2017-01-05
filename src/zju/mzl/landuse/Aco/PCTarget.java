@@ -5,6 +5,9 @@ package zju.mzl.landuse.Aco;
  * Created by mzl on 2016/11/20.
  */
 public class PCTarget extends Target {
+    public PCTarget() {
+        this.suits = new double[8][8];
+    }
     @Override
     // 计算当前目标下土地利用强度
     public double luComp(Position p, int type, Grid grids[][]) {
@@ -15,7 +18,10 @@ public class PCTarget extends Target {
     public double EtaNotConsiderLuComp(Position p, int type, Grid grids[][]) {
         Grid gd = grids[p.x][p.y];
         if (gd != null) {
-            return this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)];
+            if (this.getName() == "MPC")
+                return 1 - this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)];
+            else
+                return 1 / this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)];
         } else {
             return 0;
         }
@@ -25,8 +31,12 @@ public class PCTarget extends Target {
     public double EtaConsiderLuComp(Position p, int type, Grid grids[][]) {
         Grid gd = grids[p.x][p.y];
         if (gd != null) {
-            return  this.getSuit() * this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)]
+            if (this.getName() == "MPC")
+                return  this.getSuit() * (1 - this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)])
                     + this.getComp() * luComp(p, type, grids);
+            else
+                return   this.getSuit() * 1 / (this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)])
+                        + this.getComp() * luComp(p, type, grids);
         } else {
             return 0;
         }
@@ -43,9 +53,24 @@ public class PCTarget extends Target {
 
     @Override
     public double targetVal(Grid[][] olds, Ant a) {
-        return super.targetVal(olds, a);
+        double res = 0.0;
+        int row, col;
+        row = col = olds.length;
+        for (int i = 0; i < row; i++) {
+            for (int j = 0; j < col; j++) {
+                if (olds[i][j] != null && olds[i][j].dlbm8 != a.getTours()[i][j].dlbm8) {
+                    double t = eta(new Position(i, j), a.getTours()[i][j].dlbm8, a.getTours());
+                    res = res + t;
+                }
+            }
+        }
+        return res;
     }
 
+    @Override
+    public double targetVal2(Grid[][] olds, Ant a) {
+        return targetVal(olds, a);
+    }
 
     public double[][] getSuits() {
         return suits;

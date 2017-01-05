@@ -1,0 +1,20 @@
+public static void main(String[] args) throws IOException {
+	String relativePath = System.getProperty("user.dir");
+	File path = new File(relativePath + "\\opti");
+
+	Opti opti = new Opti();
+	opti.instance = opti.inOut.read_data(path);	// 读取数据
+	opti.init();								// 初始化参数，初始化蚁群
+	int loopTime = 0;							// 初始化迭代次数
+	while (condition(loopTime)) {
+		if (opti.simulateAnts()) {				// 蚁群构造土地利用优化配置方案
+			loopTime++;
+			// 根据循环次数调节信息素挥发因子和启发因子
+			opti.ph.adaptivePheromoneVolatileCoefficient(loopTime, 0.0);
+			opti.adaptiveHeuristicFactor(loopTime);
+			opti.updatePheros(loopTime); 		// 选择最优解，更新信息素
+			opti.restartAnts(loopTime);			// 重新初始化蚁群
+		}
+	}
+	opti.inOut.output();						// 输出Pareto最优解集
+}

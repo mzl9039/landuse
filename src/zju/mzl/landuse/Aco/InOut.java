@@ -1,16 +1,12 @@
 package zju.mzl.landuse.Aco;
 
-import sun.text.resources.iw.FormatData_iw_IL;
-
 import javax.imageio.ImageIO;
 import java.awt.*;
-import java.awt.geom.Arc2D;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.DoubleAccumulator;
 
 /**
  * Created by mzl on 2016/11/17.
@@ -53,9 +49,9 @@ public class InOut {
         // 从文件名获取格网长度（如200米）
         this.distance = Integer.parseInt(this.NAME.split("_")[2]);
         this.file_path = file.getParent();
-        this.input_target_path = this.file_path + "/target";
-        this.output_dir = this.file_path + "/output";
-        this.input_image = this.file_path + "/input_" + this.NAME + ".jpg";
+        this.input_target_path = this.file_path + "\\targets";
+        this.output_dir = this.file_path + "\\output";
+        this.input_image = this.file_path + "\\input_" + this.NAME + ".jpg";
     }
 
     public Problem read_opti() throws IOException {
@@ -74,12 +70,15 @@ public class InOut {
         nums[0] = nums[1] = this.gridLength;
         instance.setNum(nums);
         // 土地适宜性目标
-        Target target = readLSETarget(opti_file_name);
-        instance.getTargets().put(target.getName(), target);
+        //Target target = readLSETarget(opti_file_name);
+        //instance.getTargets().put(target.getName(), target);
         // 最小规划成本目标
         // TODO 测试仅适宜度目标时的效果
         Target mpcTarget = initMPCTarget();
         instance.getTargets().put(mpcTarget.getName(), mpcTarget);
+        // 土地利用强度目标
+        Target luTarget = initLUTarget();
+        instance.getTargets().put(luTarget.getName(), luTarget);
         // 读取其它的目标
         File path = new File(this.input_target_path);
         File files[] = path.listFiles();
@@ -95,17 +94,27 @@ public class InOut {
         return instance;
     }
 
+    public Target initLUTarget() {
+        Target target = new LUTarget();
+        target.setName("LU");
+        target.setLuType(4);
+        target.considerLuComp = false;
+        target.setType("LU");
+        target.setSuit(0);
+        return target;
+    }
+
     // 初始化最小规划成本目标
     public Target initMPCTarget() {
         Target target = new PCTarget();
         target.setName("MPC");  // 最小规划成本
         target.setLuType(8);
         target.considerLuComp = true;
-        target.setType(2);
+        target.setType("PC");
         target.setSuit(0.5);
         // 一共八大类，所有是八
         double t[][] = new double[8][8];
-        // t[0]代表农用地, t[1]代表绿地，t[2]代表林地，t[3]代表建设用地，t[4]代表未利用地
+        // 0-7：耕 园 林 草 交 水 未 城
         t[0][1] = 0.7;  t[0][2] = 0.7;  t[0][3] = 0.5;  t[0][4] = 0.1;
         t[0][5] = 0.5;  t[0][7] = 0.1;
         t[1][0] = 0.7;  t[1][2] = 0.9;  t[1][3] = 0.9;  t[1][4] = 0.9;
@@ -118,7 +127,11 @@ public class InOut {
         t[6][4] = 0.1;  t[6][5] = 0.3;  t[6][7] = 0.1;
         for (int i = 0; i < 8; i++) {
             for (int j = 0; j < 8; j++) {
-                if (t[i][j] == 0) t[i][j] = 10000;    // 很高的成本，不鼓励转换
+                if (t[i][j] == 0) {
+                    if (i != j) t[i][j] = 0.9999999999;    // 很高的成本，不鼓励转换，取一个非常非常接近1的数
+                        // 目前采用 1-t[i][j]的方式求最大值，故，本身转换成本为0，转换后为1，符合逻辑
+                    else t[i][j] = 0;
+                }
             }
         }
         ((PCTarget)target).setSuits(t);
@@ -188,18 +201,18 @@ public class InOut {
         target.setName("LSE");  // 土地利用适宜性评价：landuse suitability evaluation
         target.setLuType(4);      // 土地利用适宜性评价是4大类的
         target.setSuit(0.5);    // 设置土地利用适宜性与土地利用强度的权重
-        target.setType(1);      // 适宜性目标
+        target.setType("SE");      // 适宜性目标
         return target;
     }
 
-    // 这个函数有bug，只能读取适宜度SE类型的目标，对PC和TF类型的目标是无法读取的
+    // TODO 最小规划成本，只支持8大类
+    // 强烈建议：土地利用类型一定要统一
     public Target readTarget(String filename) throws IOException {
         Reader reader = null;
         BufferedReader bufferedReader = null;
-        Target target = new SETarget();
-        Suits targetSuits[][] = new Suits[this.gridLength][this.gridLength];
+        Target target = null;
         try {
-            reader = new InputStreamReader(new FileInputStream(filename), "GBK");
+            reader = new InputStreamReader(new FileInputStream(filename), "UTF-8");
             bufferedReader = new BufferedReader(reader);
             String line = bufferedReader.readLine();
             double lon, lat;
@@ -207,37 +220,67 @@ public class InOut {
                 if (line.startsWith("EOF")) {
                     break;
                 } else if (line.startsWith("TYPE")) {
-                    // 根据类型确实目标类型
-                    line = line.split("[:]")[1];
-                    if (line == "SE") {
+                    // 根据类型确实目标类型,type:1,2,3 分别对应 适宜度、转换成本、价值因子
+                    line = line.split("[,]")[1];
+                    if (line.equals("SE")) {
                         target = new SETarget();
-                    } else if (line == "PC") {
+                        target.setType("SE");
+                        Suits targetSuits[][] = new Suits[this.gridLength][this.gridLength];
+                        ((SETarget)target).setSuits(targetSuits);
+                    } else if (line.equals("PC")) {
                         target = new PCTarget();
-                    } else if (line == "TF") {
-                        target = new TFTarget();
+                        target.setType("PC");
+                    } else if (line.equals("VL")) {
+                        target = new VLTarget();
+                        target.setType("VL");
                     }
                 }else if (line.startsWith("NAME")) {
-                    target.setName(line.split("[:]")[1]);
+                    target.setName(line.split("[,]")[1]);
                 } else if (line.startsWith("LAND_USE_TYPE")) {
-                    target.setLuType(Integer.parseInt(line.split("[:]")[1]));
+                    target.setLuType(Integer.parseInt(line.split("[,]")[1]));
                 } else if (line.startsWith("SUIT")) {
-                    target.setSuit(Double.parseDouble(line.split("[:]")[1]));
-                } else if (line.startsWith("DIS")) {
+                    target.setSuit(Double.parseDouble(line.split("[,]")[1]));
+                } else if (line.startsWith("DESC")) {
+                    target.setDescription(line.split("[,]")[1]);
+                } else if (line.startsWith("CONS_LU")) {
+                    int a = Integer.parseInt(line.split("[,]")[1]);
+                    target.considerLuComp = a == 0 ? false : true;
                 } else {
-                    String[] gridInfo = line.split("[,]");
-                    Suits suits = new Suits();
-                    suits.valMap.put(1, Double.parseDouble(gridInfo[5]) / 100);   // 农用地适宜度
-                    suits.valMap.put(4, Double.parseDouble(gridInfo[6]) / 100);   // 林地适宜度
-                    suits.valMap.put(3, Double.parseDouble(gridInfo[7]) / 100);   // 建设用地适宜度
-                    suits.valMap.put(2, Double.parseDouble(gridInfo[8]) / 100);   // 绿地适宜度
-                    lat = Double.parseDouble(gridInfo[12]);
-                    lon = Double.parseDouble(gridInfo[13]);
-                    Position p = geo2pos(lat, lon);
-                    targetSuits[p.x][p.y] = suits;
+                    if (target.getType() == "SE") {
+                        // 对适宜度类目标的解析
+                        String[] gridInfo = line.split("[,]");
+                        Suits suits = new Suits();
+                        suits.valMap.put(1, Double.parseDouble(gridInfo[5]) / 100);   // 农用地适宜度
+                        suits.valMap.put(4, Double.parseDouble(gridInfo[6]) / 100);   // 林地适宜度
+                        suits.valMap.put(3, Double.parseDouble(gridInfo[7]) / 100);   // 建设用地适宜度
+                        suits.valMap.put(2, Double.parseDouble(gridInfo[8]) / 100);   // 绿地适宜度
+                        lat = Double.parseDouble(gridInfo[12]);
+                        lon = Double.parseDouble(gridInfo[13]);
+                        Position p = geo2pos(lat, lon);
+                        ((SETarget)target).getSuits()[p.x][p.y] = suits;
+                    } else if (target.getType() == "PC") {
+                        // 对规划成本等转移因子类目标的解析
+                        String changeSuit[] = line.split("[,]");
+                        if (target.getLuType() == 8) {
+                            ((PCTarget) target).getSuits()
+                                    [Utils.lu8toIdx(Integer.parseInt(changeSuit[0]))]
+                                    [Utils.lu8toIdx(Integer.parseInt(changeSuit[1]))] =
+                                    Double.parseDouble(changeSuit[2]);
+                        } else if (target.getLuType() == 4) {
+                            ((PCTarget) target).getSuits()
+                                    [Utils.lu4toIdx(Integer.parseInt(changeSuit[0]))]
+                                    [Utils.lu4toIdx(Integer.parseInt(changeSuit[1]))] =
+                                    Double.parseDouble(changeSuit[2]);
+                        }
+                    } else if (target.getType() == "VL") {
+                        // 对价值类目标的解析
+                        String typeSuit[] = line.split("[,]");
+                        ((VLTarget)target).getSuits().put(Integer.parseInt(typeSuit[0]), Double.parseDouble(typeSuit[1]));
+                    }
                 }
                 line = bufferedReader.readLine();
             }
-            ((SETarget)target).setSuits(targetSuits);
+
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -297,10 +340,10 @@ public class InOut {
     }
 
     public void inputImage(Grid grids[][]) {
-        this.generateImageByValues(grids, this.input_image);
+        this.printAntGridsImage(grids, this.input_image);
     }
 
-    public void generateImageByValues(Grid tours[][], String fileLocation) {
+    public void printAntGridsImage(Grid tours[][], String fileLocation) {
         int width = 5 * this.gridLength, height = 5 * this.gridLength;
         image = new BufferedImage(width, height, BufferedImage.TYPE_INT_BGR);
         Graphics2D graphics2d = (Graphics2D)image.getGraphics();
@@ -317,6 +360,30 @@ public class InOut {
             graphics2d.drawImage(image, 0, 0, null);
             graphics2d.dispose();
             createImage(fileLocation);
+        }
+    }
+
+    public void printChangedGrids(Grid olds[][], Grid tours[][], String filename) throws IOException {
+        int width = 5 * this.gridLength, height = 5 * this.gridLength;
+        image = new BufferedImage(width, height, BufferedImage.TYPE_INT_BGR);
+        Graphics2D graphics2d = (Graphics2D)image.getGraphics();
+        graphics2d.setBackground(Color.white);
+        Color color = null;
+        for (int i = 0; i < this.gridLength; i++) {
+            for (int j = 0; j < this.gridLength; j++) {
+                if (tours[i][j] == null || tours[i][j].dlbm8 == olds[i][j].dlbm8) {
+                    color = setColor(0);
+                } else {
+                    color = setColor(tours[i][j].dlbm8);
+                }
+                graphics2d.setColor(color);
+                graphics2d.fillRect(5*j, 5*i, 5, 5);
+            }
+        }
+        if (image != null) {
+            graphics2d.drawImage(image, 0, 0, null);
+            graphics2d.dispose();
+            createImage(filename);
         }
     }
 
@@ -357,7 +424,6 @@ public class InOut {
             bufferedWriter.close();
             writer.close();
         }
-
     }
 
     public void printTransform(int transform[][], int row, int col, String filename) throws IOException {
@@ -381,6 +447,57 @@ public class InOut {
                     }
                     bufferedWriter.newLine();
                 }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            bufferedWriter.close();
+            writer.close();
+        }
+    }
+
+    public void printAntTargets(Ant a, String filename) throws IOException {
+        Writer writer = null;
+        BufferedWriter bufferedWriter = null;
+        try {
+            writer = new OutputStreamWriter(new FileOutputStream(filename), "GBK");
+            bufferedWriter = new BufferedWriter(writer);
+            String name = "LOOP,", val = "" + a.looptime + ",";
+            for (Map.Entry<String, Double> e : a.target.entrySet()) {
+                name += e.getKey() + ",";
+                val += e.getValue() + ",";
+            }
+            bufferedWriter.write(name.substring(0, name.length()-1));
+            bufferedWriter.newLine();
+            bufferedWriter.write(val.substring(0, val.length()-1));
+            bufferedWriter.newLine();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            bufferedWriter.close();
+            writer.close();
+        }
+    }
+
+    public void printTargets(ArrayList<Map<String, Double>> pareto, String filename) throws IOException {
+        Writer writer = null;
+        BufferedWriter bufferedWriter = null;
+        try {
+            writer = new OutputStreamWriter(new FileOutputStream(filename), "GBK");
+            bufferedWriter = new BufferedWriter(writer);
+            String val = "";
+            for (Map.Entry<String, Double> e : pareto.get(0).entrySet()) {
+                val += e.getKey() + ",";
+            }
+            bufferedWriter.write(val.substring(0, val.length()-1));
+            bufferedWriter.newLine();
+            for (int i=0; i<pareto.size();i++) {
+                String s = "";
+                for (Map.Entry<String, Double> e : pareto.get(i).entrySet()) {
+                    s += e.getValue() + ",";
+                }
+                bufferedWriter.write(s.substring(0, s.length()-1));
+                bufferedWriter.newLine();
             }
         } catch (IOException e) {
             e.printStackTrace();

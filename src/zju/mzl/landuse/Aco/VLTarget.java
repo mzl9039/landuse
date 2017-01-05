@@ -1,12 +1,17 @@
 package zju.mzl.landuse.Aco;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * Transform target
- * 与成本函数类似，只规定原始类型转为目标类型的转换系数，没有格网位置差异带来的系数的不同
- * 求最大目标函数
+ * Value Target
+ * 价值相关目标，每个地类代表一种价值
  * Created by mzl on 16-12-5.
  */
-public class TFTarget extends Target {
+public class VLTarget extends Target {
+    public VLTarget() {
+        this.suits = new HashMap<>();
+    }
     // 计算当前目标下土地利用强度
     @Override
     public double luComp(Position p, int type, Grid grids[][]) {
@@ -19,9 +24,8 @@ public class TFTarget extends Target {
     @Override
     public double EtaNotConsiderLuComp(Position p, int type, Grid grids[][]) {
         Grid gd = grids[p.x][p.y];
-        int from = Utils.lu4toIdx(gd.dlbm4), to = Utils.lu4toIdx(type);
-        if (gd != null && this.getSuits()[from][to] != 0) {
-            return this.getSuits()[from][to];
+        if (gd != null && this.getSuits().get(type) != 0) {
+            return this.getSuits().get(type);
         } else {
             return 0;
         }
@@ -30,25 +34,19 @@ public class TFTarget extends Target {
     @Override
     public double EtaConsiderLuComp(Position p, int type, Grid grids[][]) {
         Grid gd = grids[p.x][p.y];
-        int from = Utils.lu4toIdx(gd.dlbm4), to = Utils.lu4toIdx(type);
-        if (gd != null && this.getSuits()[from][to] != 0) {
-            return  this.getSuit() * this.getSuits()[from][to]
+        if (gd != null && this.getSuits().get(type) != 0) {
+            return  this.getSuit() * this.getSuits().get(type)
                     + this.getComp() * luComp(p, type, grids);
         } else {
             return 0;
         }
     }
 
-    // 成本函数一般是越小越优,这里调用了super，要看super里会不会再调用这个对象里的
     // EtaConsiderLuComp 和 EtaNotConsiderLuComp
     @Override
     public double eta(Position p, int type, Grid grids[][]) {
         if(this.getLuType() == 4) {
             type = Utils.lu8tolu4(type);
-            // 如果是建设用地，则不进行转换，即转换概率为0
-            if (type == 3 && grids[p.x][p.y].dlbm8 != 12) {
-                return 0;
-            }
         }
         return this.isConsiderLuComp() == true
                 ? EtaConsiderLuComp(p, type, grids)
@@ -60,14 +58,15 @@ public class TFTarget extends Target {
         return super.targetVal(olds, a);
     }
 
+    @Override
+    public double targetVal2(Grid[][] olds, Ant a) {
+        return super.targetVal2(olds, a);
+    }
 
-    public double[][] getSuits() {
+    public Map<Integer, Double> getSuits() {
         return suits;
     }
 
-    public void setSuits(double[][] suits) {
-        this.suits = suits;
-    }
-
-    private double suits[][];
+    // 不同地类的价值或因子
+    private Map<Integer, Double> suits;
 }

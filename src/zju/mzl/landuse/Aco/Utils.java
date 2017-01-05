@@ -66,6 +66,21 @@ public class Utils {
         }
     }
 
+    public static int Idxtolu4(int idx) {
+        switch (idx) {
+            case 0:
+                return 1;
+            case 2:
+                return 3;
+            case 3:
+                return 4;
+            case 1:
+                return 2;
+            default:
+                return -1;
+        }
+    }
+
     public static int mpcLu4toIdx(int lu4, int lu8) {
         switch (lu4) {
             case 1:
@@ -104,6 +119,21 @@ public class Utils {
         }
     }
 
+    public static int lu4tolu8(int dlbm4) {
+        switch (dlbm4) {
+            case 1:
+                return 1;
+            case 2:
+                return 4;
+            case 3:
+                return 20;
+            case 4:
+                return 3;
+            default:
+                return 20;
+        }
+    }
+
     public static int lu8tolu4(int dlbm8) {
         switch (dlbm8) {
             case 1:
@@ -130,10 +160,11 @@ public class Utils {
     public static boolean canConvert(int from, int to, Grid grid) {
         // 添加自己的限制条件
         if (Utils.lu8tolu4(to) == 3 && to != 20) return false;
-        if (Utils.lu8tolu4(from) == Utils.lu8tolu4(to)) return false;
+        // 若from 与 to 类型相同，则不做不能转化，这个不能要，因为这会影响到求概率转移函数的问题
+        //if (Utils.lu8tolu4(from) == Utils.lu8tolu4(to)) return false;
         // 若当前为林地，要转为农用地，且坡度大于10,则不做转化
         if (from == 3 && to <= 2 && grid.slope >= 10) return false;
-        // 若要转为林地，且坡度小于3,则不做转化
+        // TODO： 原来程序有错，所以人为加了限制，若要转为林地或园地，且坡度小于3,则不做转化
         if ((to == 3 || to == 2) && grid.slope < 3) return false;
         if (Utils.lu8tolu4(to) == 3 && grid.height > 100) return false;
 
@@ -163,4 +194,5 @@ public class Utils {
     public static double distance = 0;
     public static double minFarmArea = 486750000;
     public static double maxConsArea = 439400000;
+    public static double maxGrassArea = 960000;     // 草地不超过24个格网
 }

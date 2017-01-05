@@ -14,7 +14,7 @@ public class Pheromone {
     public double phero[][][];
     // 信息素自适用调节系数阈值
     final double T1 = 10, T2 = 30, T3 = 50;
-    final double Q1 = 0.05, Q2 = 0.15, Q3 = 0.3, Q4 = 0.45;
+    final double Q1 = 0.1, Q2 = 0.3, Q3 = 0.6, Q4 = 0.9;
 
     public Pheromone(int row, int col, int luTypeNum) {
         this.row = row;
@@ -33,7 +33,7 @@ public class Pheromone {
         }
     }
 
-    // TODO:这里要定义一个自适应信息素函数，并依此调整信息素矩阵在位置 p 处的信息素值
+    // 这里要定义一个自适应信息素函数，并依此调整信息素矩阵在位置 p 处的信息素值
     public void updatePheros(Position p, int type, Ant a, int loopTime) {
         phero[p.x][p.y][type] = phero[p.x][p.y][type] <= min_phero ? min_phero : (1 - rho) * phero[p.x][p.y][type];
         phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime);
@@ -65,12 +65,14 @@ public class Pheromone {
 
     // 自适应调整信息素挥发系数
     // 参数：循环次数，最优解评价指数
-    // 循环次数，是初始时，挥发系数较大，便于快速，循环次数比较多时，为增加全局探索能力，调整小信息素挥发系数
-    // 最优解评价指数，如多次循环，最优解仍然没有变化，则减小信息素挥发系统，便于跳出局部最优解
+    // 初始时，挥发系数较大，信息素遗留因子较小，便于快速，循环次数比较多时，为增加全局探索能力，
+    // 后期调整小信息素挥发系数
+    // 最优解评价指数，如多次循环，最优解仍然没有变化，则减小信息素挥发系统，加快收敛
+    // 如果需要跳出局部最估解，则需要再次增大挥发系统，这里没有处理
     // 由于现在最优解评价指数无法确定，暂时只考虑循环次数，挥发因子随循环次数增加而增加
     public void adaptivePheromoneVolatileCoefficient(int loopTime, double bestSolutionEvaluation) {
-        if (rho <= 0.45 && loopTime%10 == 0) {
-            rho += 0.05 * loopTime / 10;
+        if (rho <= 0.5 && loopTime%5 == 0) {
+            rho += 0.1 * loopTime / 5;
         }
     }
 }

@@ -67,24 +67,25 @@ public class Ant {
                         int type = Utils.lu8tolu4(this.tours[i][j].dlbm8);
                         if (type == 1)  this.farmArea += 1;
                         else if (type == 3 && tours[i][j].dlbm8 != 11) this.consLandArea += 1;
+                        else if (type == 2) this.grassArea += 1;
                     }
                 }
             }
         }
     }
 
-    public void initTarget() {
+    public void initTarget(Map<String, Target> targets) {
         this.target.clear();
-        this.target.put("LSE", 1.0);
-        // TODO 测试仅适宜度目标时的效果
-        this.target.put("MPC", 1.0);
+        for (Map.Entry<String, Target> e : targets.entrySet()) {
+            this.target.put(e.getKey(), 0.0);
+        }
     }
 
     // 参数为要转为的类型
     public boolean canConvert(int to) {
         Position p = this.currentPos;
         if (Utils.canConvert(this.getTours()[p.x][p.y].dlbm8, to, this.getTours()[p.x][p.y])
-                && farmLandCanConvert(to) && consLandCanConvertTo(to)) {
+                && farmLandCanConvert(to) && consLandCanConvertTo(to) && grassCanConvertedTo(to)) {
             return true;
         }
         return false;
@@ -120,8 +121,22 @@ public class Ant {
         }
     }
 
+    private boolean grassCanConvertedTo(int to) {
+        Position p = this.currentPos;
+        if (Utils.lu8toIdx(to) == 4) {
+            if((this.getTours()[p.x][p.y].dlbm4 != 4 && this.grassArea + 1 <= Utils.maxGrassArea)
+                    || this.getTours()[p.x][p.y].dlbm4 == 4) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return true;
+        }
+    }
+
     public boolean adjustArea(int from, int to) {
-        return farmConvert(from, to) && convertToCons(from, to);
+        return farmConvert(from, to) && convertToCons(from, to) && convertToGrass(from, to);
     }
 
     private boolean farmConvert(int from, int to) {
@@ -150,6 +165,19 @@ public class Ant {
         }
     }
 
+    private boolean convertToGrass(int from, int to) {
+        if (Utils.lu8toIdx(from) != 4 && Utils.lu8tolu4(to) == 4) {
+            if (this.grassArea + 1 <= Utils.maxGrassArea) {
+                this.grassArea += 1;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return true;
+        }
+    }
+
     public Ant() { }
 
     public Ant(int updated, int stop, int tabu[][], double f) {
@@ -159,19 +187,6 @@ public class Ant {
         this.neighbours = new HashMap();
         this.f = f;
         this.target = new HashMap<>();
-        initTarget();
-    }
-
-    public void restartAnt(int updated, int allVisited, int tabu[][], double f) {
-        this.updated = updated;
-        this.stop = allVisited;
-        this.tabu = tabu;
-        this.neighbours = new HashMap();
-        Double d = new Double(f);
-        this.f = d.doubleValue();
-        this.neighbours.clear();
-        this.target = new HashMap<>();
-        initTarget();
     }
 
     public Ant clone() {
@@ -187,6 +202,7 @@ public class Ant {
         a.currentPos = this.currentPos;
         Double d3 = new Double(this.f);
         a.f = d3.doubleValue();
+        a.looptime = looptime;
         return a;
     }
 
@@ -236,6 +252,8 @@ public class Ant {
     public double f;
     public HashMap<String, Double> target;
     public double farmArea, consLandArea;       // 农用地面积，建设用地面积，注意农用地有最小值，建设用地有最大值
+    public double grassArea;                    // 加草地限制
     public HashMap<Integer, Integer> statGrids;
     public int statTransform[][];
+    public int looptime;
 }

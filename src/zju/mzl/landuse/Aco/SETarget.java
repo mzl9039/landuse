@@ -29,6 +29,11 @@ public class SETarget extends Target {
         return super.targetVal(olds, a);
     }
 
+    @Override
+    public double targetVal2(Grid[][] olds, Ant a) {
+        return super.targetVal2(olds, a);
+    }
+
     public double EtaNotConsiderLuComp(Position p, int type, Grid grids[][]) {
         if (grids[p.x][p.y] != null) {
             return this.getSuits()[p.x][p.y].valMap.get(type);
@@ -38,12 +43,18 @@ public class SETarget extends Target {
     }
 
     public double EtaConsiderLuComp(Position p, int type, Grid grids[][]) {
-        if (grids[p.x][p.y] != null) {
-            return this.getSuit() * this.getSuits()[p.x][p.y].valMap.get(type)
-                    + this.getComp() * luComp(p, type, grids);
-        } else {
-            return 0;
+        try {
+            if (grids[p.x][p.y] != null) {
+                return this.getSuit() * this.getSuits()[p.x][p.y].valMap.get(type)
+                        + this.getComp() * luComp(p, type, grids);
+            } else {
+                return 0;
+            }
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+            System.err.println(p.x + " " + p.y);
         }
+        return 0;
     }
 
     public Suits[][] getSuits() {
