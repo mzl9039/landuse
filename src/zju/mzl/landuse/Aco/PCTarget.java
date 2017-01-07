@@ -18,10 +18,10 @@ public class PCTarget extends Target {
     public double EtaNotConsiderLuComp(Position p, int type, Grid grids[][]) {
         Grid gd = grids[p.x][p.y];
         if (gd != null) {
-            if (this.getName() == "MPC")
+            //if (this.getName() == "MPC")
                 return 1 - this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)];
-            else
-                return 1 / this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)];
+/*            else
+                return 1 / this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)];*/
         } else {
             return 0;
         }
@@ -31,12 +31,12 @@ public class PCTarget extends Target {
     public double EtaConsiderLuComp(Position p, int type, Grid grids[][]) {
         Grid gd = grids[p.x][p.y];
         if (gd != null) {
-            if (this.getName() == "MPC")
+            //if (this.getName() == "MPC")
                 return  this.getSuit() * (1 - this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)])
                     + this.getComp() * luComp(p, type, grids);
-            else
+/*            else
                 return   this.getSuit() * 1 / (this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)])
-                        + this.getComp() * luComp(p, type, grids);
+                        + this.getComp() * luComp(p, type, grids);*/
         } else {
             return 0;
         }

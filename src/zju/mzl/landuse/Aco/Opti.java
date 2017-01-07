@@ -1,5 +1,10 @@
 package zju.mzl.landuse.Aco;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import javax.crypto.spec.PSource;
 import java.io.*;
 import java.text.Format;
@@ -12,16 +17,18 @@ import java.util.*;
 public class Opti {
     public HashMap<Integer, String> lu8 = new HashMap<>();
     public HashMap<Integer, String> lu4 = new HashMap<>();
-    public ArrayList<Map<String, Double>> pareto = new ArrayList<>();
-    public int bestAntRatio = 5;
+    public int bestAntSameLoopTime = 0;
+    public Ant bestAnt = null;
     public int row;
     public int col;
     public Problem instance;
     public InOut inOut;
     public Pheromone ph;
     public ArrayList<Ant> results;
+    public ArrayList<Double> lastEanlistAnts;
+    public ArrayList<ArrayList<HashMap<String, Double>>> targets = new ArrayList<>();
 
-    final int max_grids = 2000;
+    final int max_grids = 20000;
     final int max_ants = 20;
     final int max_loop = 80;
     final int max_try_times = max_loop * max_grids;
@@ -47,60 +54,52 @@ public class Opti {
             System.out.println("不存在路径" + path);
             System.exit(1);
         }
-
-        int curTryTime = 0;
-        Opti opti = new Opti();
-        System.out.println("最大运行次数:" + opti.max_try_times);
-        Timer timer = new Timer();
-        timer.start_timers();
-        opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.endsWith(".csv"))[0]);
-        opti.instance = opti.inOut.read_opti();
-        opti.row = opti.col = opti.inOut.gridLength;
-        //opti.inOut.printGrids(opti.instance.getGrids(), opti.row, opti.col, opti.inOut.file_path + "\\input.txt");
-        //opti.inOut.inputImage(opti.instance.getGrids());
-        opti.init();
-        // 要计算最初的三个目标的值是多少
-        Ant a = opti.initAnt(0);
-        for (Map.Entry<String, Target> e : opti.instance.getTargets().entrySet()) {
-            a.target.replace(e.getKey(), e.getValue().targetVal2(opti.instance.getGrids(), a));
-        }
-        opti.inOut.printAntTargets(a, opti.inOut.file_path + "\\input_tg.txt");
-        int loopTime = 0;
-        while (curTryTime++ < opti.max_try_times) {
-            if (opti.simulateAnts() == 0) {
-                loopTime++;
-                // 根据循环次数调节信息素挥发因子和启发因子
-                opti.ph.adaptivePheromoneVolatileCoefficient(loopTime, 0.0);
-                opti.adaptiveHeuristicFactor(loopTime);
-
-                opti.updatePheros(loopTime);    
-                if (curTryTime != opti.max_try_times) {
-                    opti.restartAnts(loopTime);
-                }
-                System.out.println("尝试次数" + loopTime);
+        for (int i = 0; i < 10; i++) {
+            int curTryTime = 0;
+            Opti opti = new Opti();
+            System.out.println("最大运行次数:" + opti.max_try_times);
+            Timer timer = new Timer();
+            timer.start_timers();
+            Format format = new SimpleDateFormat("yyyyMMdd_hhmmss");
+            Date date = new Date();
+            opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.endsWith(".csv"))[0]);
+            opti.instance = opti.inOut.read_opti();
+            opti.row = opti.col = opti.inOut.gridLength;
+            opti.init();
+            // 要计算最初的三个目标的值是多少
+            Ant a = opti.initAnt(0);
+            for (Map.Entry<String, Target> e : opti.instance.getTargets().entrySet()) {
+                a.target.replace(e.getKey(), e.getValue().targetVal2(opti.instance.getGrids(), a));
             }
+            File inDir = new File(opti.inOut.file_path + "\\" + format.format(date));
+            inDir.mkdir();
+            opti.inOut.printAnt(a, inDir.toString() + "\\input.json");
+            int loopTime = 0;
+            while (curTryTime++ < opti.max_try_times || opti.bestAntSameLoopTime < 15) {
+                if (opti.simulateAnts() == 0) {
+                    loopTime++;
+                    // 根据循环次数调节信息素挥发因子和启发因子
+                    opti.ph.adaptivePheromoneVolatileCoefficient(loopTime, 0.0);
+                    opti.adaptiveHeuristicFactor(loopTime);
+
+                    opti.updatePheros(loopTime);
+                    if (curTryTime != opti.max_try_times) {
+                        opti.restartAnts(loopTime);
+                    }
+                }
+            }
+            // 为本次的输出创建目录
+            File outDir = new File(opti.inOut.output_dir + "\\result\\" + format.format(date));
+            if (!outDir.exists()) {
+                outDir.mkdir();
+            }
+            opti.inOut.printAnt(opti.bestAnt, outDir.toString() + "\\ant.json");
+            opti.inOut.printTargets(opti.targets, outDir.toString() + "\\targets.json");
+            opti.inOut.printAntGridsImage(opti.bestAnt.getTours(), outDir.toString() + "\\ant.jpg");
+            opti.inOut.printChangedGrids(opti.instance.getGrids(), opti.bestAnt.getTours(), outDir.toString() + "\\ant_chg.jpg");
+            double timeSpend = timer.elapsed_time();
+            System.out.println("程序运行用时：" + timeSpend);
         }
-        System.out.println("ACO:最优Pareto解集中解的个数：" + opti.results.size());
-        // 为本次的输出创建目录
-        Format format = new SimpleDateFormat("yyyyMMdd_hhmmss");
-        File outDir = new File(opti.inOut.output_dir + "\\" + format.format(new Date()));
-        if (!outDir.exists()) {
-            outDir.mkdir();
-        }
-        for (int i = 0; i < opti.results.size(); i++) {
-            // 每个结果要输出为txt和jpg两种结果
-            String filename = outDir.toString() + "\\" + i;
-            opti.inOut.printGrids(opti.results.get(i).getTours(), opti.row, opti.col, filename + ".txt");
-            opti.inOut.printAntGridsImage(opti.results.get(i).getTours(), filename + ".jpg");
-            opti.inOut.printChangedGrids(opti.instance.getGrids(), opti.results.get(i).getTours(), filename + "_chg.jpg");
-            opti.results.get(i).statTransform =
-                    Grid.statTransform(opti.instance.getGrids(), opti.results.get(i).getTours(), opti.row, opti.col);
-            opti.inOut.printTransform(opti.results.get(i).statTransform, opti.lu8.size(), opti.lu8.size(), filename + "_tf.txt");
-            opti.inOut.printAntTargets(opti.results.get(i), filename + "_tg.csv");
-        }
-        opti.inOut.printTargets(opti.pareto, outDir.toString() + "\\pareto_tgs.csv");
-        double timeSpend = timer.elapsed_time();
-        System.out.println("程序运行用时：" + timeSpend);
     }
 
     public Ant initAnt(int looptime) {
@@ -142,12 +141,11 @@ public class Opti {
     public void restartAnts(int looptime) {
         initAnts(looptime);
     }
-
     //////////////////////////////////////////////////////////////
 
-    // 计算格网 m,n 处的启发信息值，在选择格网类型时使用
-    // 由于有多个目标函数，所以多个目标函数的局部目标值之间，用乘积结果转为单目标
-    double heuristic(Ant a, Pheromone ph, int type, Position p) {
+    // 计算启发信息值
+    // 多目标转为单目标计算局部最优值
+    double expInfo(Ant a, int type, Position p) {
         Grid grids[][] = a.getTours();
         if (a.canConvert(type)) {
             double res = 1.0;
@@ -157,19 +155,28 @@ public class Opti {
                 double t = e.getValue().eta(p, type, grids);
                 res = res * t;
             }
-            Grid gd = a.getCurGrid();
+            // 默认不使用经济鼓励因子
+            /*Grid gd = a.getCurGrid();
             if (gd.encourageFactor > 0) {
                 res = gd.adjustResByEncourageFactor(res, type);
-            }
-            return Math.pow(ph.phero[p.x][p.y][Utils.lu8toIdx(type)], alpha) * Math.pow(res, beta);
+            }*/
+            // 记录下配置方案在信息p处类型type的启发信息值
+            grids[p.x][p.y].exp.replace(type, res);
+            return res;
         } else {
             return 0;
         }
     }
 
+    // 计算概率转移函数
+    double heuristic(Ant a, Pheromone ph, int type, Position p) {
+        double exp = expInfo(a, type, p);
+        return Math.pow(ph.phero[p.x][p.y][Utils.lu8toIdx(type)], alpha) * Math.pow(exp, beta);
+    }
+
     void adaptiveHeuristicFactor(int looptime) {
         if (looptime % 5 == 0 && alpha <= 0.5) {
-            alpha += 0.1 * looptime / 5;
+            alpha += 0.01 * looptime / 5;
             beta = 1 - alpha;
         }
     }
@@ -187,44 +194,64 @@ public class Opti {
                 a.f *= e.getValue();
             }
             a.StatTours();
-            pareto.add(a.target);
         });
         // a.f按从大到小排列
         ants.sort((a, b) -> (int)(b.f - a.f));
-        for (int i = 0; i < ants.size(); i++) {
-            if (results.size() == 0) {
-                results.add(ants.get(i).clone());
-            } else {
-                // 当前蚂蚁要和所有的优秀结果集做比较，如果比其中的一个要优秀，则替换；
-                // 如果和其中一个相等，则跳过；否则，加入解集
-                int compare2 = -1;
-                for (int j = 0; j < results.size(); j++) {
-                    int compare = Ant.targetCompareTo(ants.get(i), results.get(j));
-                    if (compare > 0) {
-                        results.set(j, ants.get(i).clone());
-                        compare2 = 1;
-                        break;
-                    } else if (compare == 0) {
-                        compare2 = 0;
-                        break;
-                    }
-                }
-                if (compare2 == -1) {
-                    results.add(ants.get(i).clone());
-                }
-            }
+        // 选择最优蚂蚁
+        if (bestAnt == null || bestAnt.f < ants.get(0).f) {
+            bestAntSameLoopTime = 0;
+            bestAnt = ants.get(0);
+        } else {
+            bestAntSameLoopTime++;
         }
+        // 将本次运行结果与上一次做比较
+        ArrayList<Boolean> com = CompareAntsWithLast();
+        //记录最优秀的5只蚂蚁的各个目标函数值
+        targets.add(RecordEalistAnts());
+        System.out.println("尝试次数" + loopTime + ";本轮最优蚂蚁目标函数值为: " + ants.get(0).f
+                +";最优蚂蚁目标函数值为：" + bestAnt.f);
 
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < col; j++) {
                 for (int k = 0; k < ants.size(); k++) {
                     Ant a = ants.get(k);
                     for (int l = 0; l < lu8.size(); l++) {
-                        ph.updatePheros(new Position(i, j), l, a, loopTime);
+                        ph.updatePheros(new Position(i, j), l, a, loopTime, com.get(l));
                     }
                 }
             }
         }
+        // 将本次蚁群搜索的结果保存下来
+        GetLastEalistAnts();
+    }
+
+    public ArrayList<Boolean> CompareAntsWithLast() {
+        ArrayList<Boolean> com = new ArrayList<>();
+        for (int i = 0; i < ants.size(); i++) {
+            if (lastEanlistAnts == null || ants.get(i).f >= lastEanlistAnts.get(i)) {
+                com.add(true);
+            } else {
+                com.add(false);
+            }
+        }
+        return com;
+    }
+
+    public void GetLastEalistAnts() {
+        if (lastEanlistAnts == null) {
+            lastEanlistAnts = new ArrayList<>();
+        }
+        for (int i = 0; i < ants.size(); i++) {
+            lastEanlistAnts.add(ants.get(i).f);
+        }
+    }
+
+    public ArrayList<HashMap<String, Double>> RecordEalistAnts() {
+        ArrayList<HashMap<String, Double>> targ = new ArrayList<>();
+        for (int i = 0; i < ants.size() / 4; i++) {
+            targ.add(ants.get(i).target);
+        }
+        return targ;
     }
     //////////////////////////////////////////////////////////////
 

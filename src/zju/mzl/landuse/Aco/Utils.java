@@ -51,6 +51,19 @@ public class Utils {
         }
     }
 
+    public static Map<Integer, Double> initLu8Map() {
+        Map<Integer, Double> lu8 = new HashMap<>();
+        lu8.put(1, 0.0);
+        lu8.put(2, 0.0);
+        lu8.put(3, 0.0);
+        lu8.put(4, 0.0);
+        lu8.put(10, 0.0);
+        lu8.put(11, 0.0);
+        lu8.put(12, 0.0);
+        lu8.put(20, 0.0);
+        return lu8;
+    }
+
     public static int lu4toIdx(int type) {
         switch (type) {
             case 1:

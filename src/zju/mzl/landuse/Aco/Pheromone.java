@@ -34,23 +34,33 @@ public class Pheromone {
     }
 
     // 这里要定义一个自适应信息素函数，并依此调整信息素矩阵在位置 p 处的信息素值
-    public void updatePheros(Position p, int type, Ant a, int loopTime) {
-        phero[p.x][p.y][type] = phero[p.x][p.y][type] <= min_phero ? min_phero : (1 - rho) * phero[p.x][p.y][type];
-        phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime);
-        checkPheromoneLeft(p, type);
+    public void updatePheros(Position p, int type, Ant a, int loopTime, Boolean com) {
+        if (a.getGrid(p) != null) {
+            phero[p.x][p.y][type] = phero[p.x][p.y][type] <= min_phero ? min_phero : (1 - rho) * phero[p.x][p.y][type];
+            // 蚂蚁释放的信息素，改为由信息素强度和启发信息值的乘积决定，而不是单纯由信息素强度决定
+            int t = Utils.idxtolu8(type);
+            phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime, com) * a.getGrid(p).exp.get(t);
+            checkPheromoneLeft(p, type);
+        }
     }
 
     // loopTime：循环次数
     // return: 调节系数
-    public double adaptivePheromoneAdjustmentCoefficient(int loopTime) {
+    public double adaptivePheromoneAdjustmentCoefficient(int loopTime, Boolean com) {
+        double res = 0;
         if (loopTime < this.T1) {
-            return this.Q1;
+            res = this.Q1;
         } else if (loopTime >= this.T1 && loopTime < this.T2) {
-            return this.Q2;
+            res = this.Q2;
         } else if (loopTime >= this.T2 && loopTime < this.T3) {
-            return this.Q3;
+            res = this.Q3;
         } else {
-            return this.Q4;
+            res = this.Q4;
+        }
+        if (com) {
+            return res * 1.5;
+        } else {
+            return  res * 0.5;
         }
     }
 

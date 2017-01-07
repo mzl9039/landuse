@@ -10,6 +10,14 @@ import java.util.Map;
  */
 public class Ant {
 
+    public Grid getGrid(Position p) {
+        if (p != null) {
+            return this.tours[p.x][p.y];
+        } else {
+            return null;
+        }
+    }
+
     public Position getCurrentPos() {
         return currentPos;
     }
@@ -19,8 +27,7 @@ public class Ant {
     }
 
     public Grid getCurGrid() {
-        Position p = this.currentPos;
-        return this.tours[p.x][p.y];
+        return getGrid(this.currentPos);
     }
 
     public int getStop() {
@@ -238,8 +245,8 @@ public class Ant {
 
     public void StatTours() {
         this.statGrids = Grid.statGrids(this.tours, this.tours.length, this.tours.length);
-        System.out.println("蚂蚁的目标函数值f:" + this.f);
-        statGrids.forEach((k, v) -> System.out.print("k:" + k + "; v:" + v + "\t\t"));
+        //System.out.println("蚂蚁的目标函数值f:" + this.f);
+        //statGrids.forEach((k, v) -> System.out.print("k:" + k + "; v:" + v + "\t\t"));
     }
 
     private Position currentPos;

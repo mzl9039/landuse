@@ -1,5 +1,10 @@
 package zju.mzl.landuse.Aco;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import net.sf.json.JSON;
+
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -394,116 +399,17 @@ public class InOut {
         return p;
     }
 
-    public void printGrids(Grid grids[][], int row, int col, String filename) throws IOException {
-        File file = new File(filename);
-        if (file.exists()) {
-            file.delete();
-        }
-        Writer writer = null;
-        BufferedWriter bufferedWriter = null;
-        try {
-            writer = new OutputStreamWriter(new FileOutputStream(filename), "GBK");
-            bufferedWriter = new BufferedWriter(writer);
-            HashMap<Integer, Integer> stat = Grid.statGrids(grids, row, col);
-            for (Map.Entry<Integer, Integer> e : stat.entrySet()) {
-                bufferedWriter.write("" + e.getKey() + " " + e.getValue());
-                bufferedWriter.newLine();
-            }
-            bufferedWriter.newLine();
-            for (int i = 0; i < row; i++) {
-                for (int j = 0; j < col; j++) {
-                    if (grids[i][j] != null) {
-                        bufferedWriter.write("" + i + " " + j + " " + grids[i][j].dlbm8);
-                        bufferedWriter.newLine();
-                    }
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            bufferedWriter.close();
-            writer.close();
-        }
+    public void printAnt(Ant a, String filename) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        String val = objectMapper.writeValueAsString(a);
+        objectMapper.writeValue(new File(filename), val);
     }
 
-    public void printTransform(int transform[][], int row, int col, String filename) throws IOException {
-        Writer writer = null;
-        BufferedWriter bufferedWriter = null;
-        try {
-            writer = new OutputStreamWriter(new FileOutputStream(filename), "GBK");
-            bufferedWriter = new BufferedWriter(writer);
-            int lu8[] = {1, 2, 3, 4, 10, 11, 12, 20};
-            for (int i = 0; i < row + 1; i++) {
-                if (i == 0) {
-                    for (int j = 0; j < col; j++) {
-                        if (j != col-1) bufferedWriter.write(lu8[j] + ",");
-                        else bufferedWriter.write(lu8[j] + "");
-                    }
-                    bufferedWriter.newLine();
-                } else {
-                    for (int j = 0; j < col; j++) {
-                        if (j != col-1) bufferedWriter.write(transform[i-1][j] + ",");
-                        else bufferedWriter.write(transform[i-1][j] + "");
-                    }
-                    bufferedWriter.newLine();
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            bufferedWriter.close();
-            writer.close();
-        }
-    }
-
-    public void printAntTargets(Ant a, String filename) throws IOException {
-        Writer writer = null;
-        BufferedWriter bufferedWriter = null;
-        try {
-            writer = new OutputStreamWriter(new FileOutputStream(filename), "GBK");
-            bufferedWriter = new BufferedWriter(writer);
-            String name = "LOOP,", val = "" + a.looptime + ",";
-            for (Map.Entry<String, Double> e : a.target.entrySet()) {
-                name += e.getKey() + ",";
-                val += e.getValue() + ",";
-            }
-            bufferedWriter.write(name.substring(0, name.length()-1));
-            bufferedWriter.newLine();
-            bufferedWriter.write(val.substring(0, val.length()-1));
-            bufferedWriter.newLine();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            bufferedWriter.close();
-            writer.close();
-        }
-    }
-
-    public void printTargets(ArrayList<Map<String, Double>> pareto, String filename) throws IOException {
-        Writer writer = null;
-        BufferedWriter bufferedWriter = null;
-        try {
-            writer = new OutputStreamWriter(new FileOutputStream(filename), "GBK");
-            bufferedWriter = new BufferedWriter(writer);
-            String val = "";
-            for (Map.Entry<String, Double> e : pareto.get(0).entrySet()) {
-                val += e.getKey() + ",";
-            }
-            bufferedWriter.write(val.substring(0, val.length()-1));
-            bufferedWriter.newLine();
-            for (int i=0; i<pareto.size();i++) {
-                String s = "";
-                for (Map.Entry<String, Double> e : pareto.get(i).entrySet()) {
-                    s += e.getValue() + ",";
-                }
-                bufferedWriter.write(s.substring(0, s.length()-1));
-                bufferedWriter.newLine();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            bufferedWriter.close();
-            writer.close();
-        }
+    public void printTargets(ArrayList<ArrayList<HashMap<String, Double>>> targets, String filename) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        String val = objectMapper.writeValueAsString(targets);
+        objectMapper.writeValue(new File(filename), val);
     }
 }

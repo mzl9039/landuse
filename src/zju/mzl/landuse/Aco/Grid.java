@@ -3,6 +3,7 @@ package zju.mzl.landuse.Aco;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Created by mzl on 2016/11/17.
@@ -18,6 +19,7 @@ public class Grid {
     double height;
     double lon, lat;
     int x, y;
+    Map<Integer, Double> exp = Utils.initLu8Map();
 
     public Grid() {}
 
@@ -35,6 +37,7 @@ public class Grid {
         grid.lat = this.lat;
         grid.x = this.x;
         grid.y = this.y;
+        grid.exp.entrySet().stream().forEach(e -> e.setValue(this.exp.get(e.getKey())));
         return grid;
     }
 
