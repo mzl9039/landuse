@@ -1,7 +1,5 @@
 package zju.mzl.landuse.Aco;
 
-import javafx.geometry.Pos;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -73,7 +71,7 @@ public class Ant {
                     } else {
                         int type = Utils.lu8tolu4(this.tours[i][j].dlbm8);
                         if (type == 1)  this.farmArea += 1;
-                        else if (type == 3 && tours[i][j].dlbm8 != 11) this.consLandArea += 1;
+                        else if (type == 3 && tours[i][j].dlbm8 != 11 && tours[i][j].dlbm8 != 12) this.consLandArea += 1;
                         else if (type == 2) this.grassArea += 1;
                     }
                 }
@@ -118,7 +116,7 @@ public class Ant {
         Position p = this.currentPos;
         if (Utils.lu8toIdx(to) == 3) {
             if ((this.getTours()[p.x][p.y].dlbm4 != 3 && this.consLandArea + 1 <= Utils.maxConsArea)
-                    || this.getTours()[p.x][p.y].dlbm4 == 3) {
+                    || (this.getTours()[p.x][p.y].dlbm4 == 3 && this.getTours()[p.x][p.y].dlbm8 != 11)) {
                 return true;
             } else {
                 return false;

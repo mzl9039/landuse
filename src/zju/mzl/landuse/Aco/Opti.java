@@ -1,11 +1,5 @@
 package zju.mzl.landuse.Aco;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import javax.crypto.spec.PSource;
 import java.io.*;
 import java.text.Format;
 import java.text.SimpleDateFormat;
@@ -64,6 +58,7 @@ public class Opti {
             Date date = new Date();
             opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.endsWith(".csv"))[0]);
             opti.instance = opti.inOut.read_opti();
+
             opti.row = opti.col = opti.inOut.gridLength;
             opti.init();
             // 要计算最初的三个目标的值是多少
@@ -157,7 +152,7 @@ public class Opti {
             }
             // 默认不使用经济鼓励因子
             /*Grid gd = a.getCurGrid();
-            if (gd.encourageFactor > 0) {
+            if (gd.encourageF > 0) {
                 res = gd.adjustResByEncourageFactor(res, type);
             }*/
             // 记录下配置方案在信息p处类型type的启发信息值
@@ -191,7 +186,7 @@ public class Opti {
                 a.target.replace(e.getKey(), e.getValue().targetVal(instance.getGrids(), a));
             }
             for (Map.Entry<String, Double> e : a.target.entrySet()) {
-                a.f *= e.getValue();
+                a.f *= e.getValue() / a.updated;
             }
             a.StatTours();
         });

@@ -39,7 +39,8 @@ public class Pheromone {
             phero[p.x][p.y][type] = phero[p.x][p.y][type] <= min_phero ? min_phero : (1 - rho) * phero[p.x][p.y][type];
             // 蚂蚁释放的信息素，改为由信息素强度和启发信息值的乘积决定，而不是单纯由信息素强度决定
             int t = Utils.idxtolu8(type);
-            phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime, com) * a.getGrid(p).exp.get(t);
+            // 改为当前蚂蚁的全局目标函数值
+            phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime, com) * a.f;
             checkPheromoneLeft(p, type);
         }
     }

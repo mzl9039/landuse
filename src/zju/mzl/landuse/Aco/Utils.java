@@ -181,7 +181,7 @@ public class Utils {
         if ((to == 3 || to == 2) && grid.slope < 3) return false;
         if (Utils.lu8tolu4(to) == 3 && grid.height > 100) return false;
 
-        if (grid.constraint != 0) return false;
+        if (grid.constrain != 0) return false;
         // 除未利用地外的建设用地不能转为其它类型
         if (from > 4 && from != 12) return false;
         // 坡度大于25度时，不能转为耕地

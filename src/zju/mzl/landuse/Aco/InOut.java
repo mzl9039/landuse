@@ -3,15 +3,18 @@ package zju.mzl.landuse.Aco;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.sf.json.JSON;
+import org.supercsv.cellprocessor.ParseDouble;
+import org.supercsv.cellprocessor.ParseInt;
+import org.supercsv.cellprocessor.ift.CellProcessor;
+import org.supercsv.io.CsvBeanReader;
+import org.supercsv.io.ICsvBeanReader;
+import org.supercsv.prefs.CsvPreference;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Created by mzl on 2016/11/17.
@@ -74,13 +77,6 @@ public class InOut {
         int[] nums = new int[2];
         nums[0] = nums[1] = this.gridLength;
         instance.setNum(nums);
-        // 土地适宜性目标
-        //Target target = readLSETarget(opti_file_name);
-        //instance.getTargets().put(target.getName(), target);
-        // 最小规划成本目标
-        // TODO 测试仅适宜度目标时的效果
-        Target mpcTarget = initMPCTarget();
-        instance.getTargets().put(mpcTarget.getName(), mpcTarget);
         // 土地利用强度目标
         Target luTarget = initLUTarget();
         instance.getTargets().put(luTarget.getName(), luTarget);
@@ -89,9 +85,8 @@ public class InOut {
         File files[] = path.listFiles();
         if (files != null) {
             for (int i = 0; i < files.length; i++) {
-                if (files[i].isFile()) {
-                    // 严格来说，这里应该要可以区分出来目标的类型，要不然就是在目标文件里区分类型
-                    Target t = readTarget(files[i].toString());
+                if (files[i].isFile() && files[i].toString().endsWith("json")) {
+                    Target t = raedTarget2(files[i].toString());
                     instance.getTargets().put(t.getName(), t);
                 }
             }
@@ -109,79 +104,39 @@ public class InOut {
         return target;
     }
 
-    // 初始化最小规划成本目标
-    public Target initMPCTarget() {
-        Target target = new PCTarget();
-        target.setName("MPC");  // 最小规划成本
-        target.setLuType(8);
-        target.considerLuComp = true;
-        target.setType("PC");
-        target.setSuit(0.5);
-        // 一共八大类，所有是八
-        double t[][] = new double[8][8];
-        // 0-7：耕 园 林 草 交 水 未 城
-        t[0][1] = 0.7;  t[0][2] = 0.7;  t[0][3] = 0.5;  t[0][4] = 0.1;
-        t[0][5] = 0.5;  t[0][7] = 0.1;
-        t[1][0] = 0.7;  t[1][2] = 0.9;  t[1][3] = 0.9;  t[1][4] = 0.9;
-        t[1][5] = 0.7;  t[1][7] = 0.3;
-        t[2][0] = 0.9;  t[2][1] = 0.9;  t[2][3] = 0.5;  t[2][4] = 0.9;
-        t[2][5] = 0.9;  t[2][7] = 0.9;
-        t[3][0] = 0.1;  t[3][1] = 0.3;  t[3][2] = 0.7;  t[3][4] = 0.1;
-        t[3][5] = 0.5;  t[3][7] = 0.1;
-        t[6][0] = 0.3;  t[6][1] = 0.9;  t[6][2] = 0.7;  t[6][3] = 0.9;
-        t[6][4] = 0.1;  t[6][5] = 0.3;  t[6][7] = 0.1;
-        for (int i = 0; i < 8; i++) {
-            for (int j = 0; j < 8; j++) {
-                if (t[i][j] == 0) {
-                    if (i != j) t[i][j] = 0.9999999999;    // 很高的成本，不鼓励转换，取一个非常非常接近1的数
-                        // 目前采用 1-t[i][j]的方式求最大值，故，本身转换成本为0，转换后为1，符合逻辑
-                    else t[i][j] = 0;
-                }
+    public ArrayList<Grid> readGridsCsv(String opti_file_name) throws IOException {
+        ICsvBeanReader beanReader = null;
+        ArrayList<Grid> gds = new ArrayList<>();
+        try {
+            beanReader = new CsvBeanReader(new FileReader(opti_file_name), CsvPreference.EXCEL_PREFERENCE);
+            final String[] header = beanReader.getHeader(true);
+            final CellProcessor[] processors = getProcessors();
+            SrcGrid grid = null;
+            ArrayList<SrcGrid> grids = new ArrayList<>();
+            while ((grid = beanReader.read(SrcGrid.class, header, processors)) != null) {
+                grids.add(grid);
+                if (grid.Y < this.minLon) this.minLon = grid.Y;
+                if (grid.X < this.minLat) this.minLat = grid.X;
+                if (grid.Y > this.maxLon) this.maxLon = grid.Y;
+                if (grid.X > this.maxLat) this.maxLat = grid.X;
             }
+            grids.forEach(gd -> gds.add(Grid.fromSrcGrid(gd)));
+        } finally {
+            if (beanReader != null) {
+                beanReader.close();
+            }
+            return gds;
         }
-        ((PCTarget)target).setSuits(t);
-        return target;
     }
 
     public Grid[][] readGrid(String opti_file_name) throws IOException {
         Grid grids[][] = null;
-        Reader reader = null;
-        BufferedReader bufferedReader = null;
-        ArrayList<Grid> gds = new ArrayList<>();
         try {
-            reader = new InputStreamReader(new FileInputStream(opti_file_name), "GBK");
-            bufferedReader = new BufferedReader(reader);
-            String line = bufferedReader.readLine();
-            // 读取除适宜性以外的所有信息
-            while (line != null) {
-                if (line.startsWith("EOF")) {
-                    break;
-                } else if (line.startsWith("DIS")) {
-                    this.distance = Integer.parseInt(line.split(",")[1]);
-                    Utils.distance = this.distance;
-                    Utils.minFarmArea /= Utils.distance * Utils.distance;
-                    Utils.maxConsArea /= Utils.distance * Utils.distance;
-                } else {
-                    String[] gridInfo = line.split(",");
-                    Grid gd = new Grid();
-                    gd.objectid = Integer.parseInt(gridInfo[0]);
-                    gd.area = Double.parseDouble(gridInfo[1]);
-                    gd.slope = Double.parseDouble(gridInfo[2]);
-                    gd.dlbm8 = Integer.parseInt(gridInfo[3]);
-                    gd.constraint = Integer.parseInt(gridInfo[4]);
-                    gd.dlbm4 = Integer.parseInt(gridInfo[9]);
-                    gd.encourageFactor = Double.parseDouble(gridInfo[10]) / 100;
-                    gd.height = Double.parseDouble(gridInfo[11]);
-                    gd.lat = Double.parseDouble(gridInfo[12]);
-                    gd.lon = Double.parseDouble(gridInfo[13]);
-                    if (gd.lon < this.minLon) this.minLon = gd.lon;
-                    if (gd.lat < this.minLat) this.minLat = gd.lat;
-                    if (gd.lon > this.maxLon) this.maxLon = gd.lon;
-                    if (gd.lat > this.maxLat) this.maxLat = gd.lat;
-                    gds.add(gd);
-                }
-                line = bufferedReader.readLine();
-            }
+            this.distance = 200;
+            Utils.distance = this.distance;
+            Utils.minFarmArea /= Utils.distance * Utils.distance;
+            Utils.maxConsArea /= Utils.distance * Utils.distance;
+            ArrayList<Grid> gds = readGridsCsv(opti_file_name);
 
             this.gridLength = (int) ((this.maxLat - this.minLat) > (this.maxLon - this.minLon)
                     ? (this.maxLat - this.minLat) / this.distance
@@ -190,109 +145,26 @@ public class InOut {
             grids = new Grid[this.gridLength][this.gridLength];
             for (Grid g : gds) {
                 Position p = geo2pos(g.lat, g.lon);
+                g.x = p.x;
+                g.y = p.y;
                 grids[p.x][p.y] = g;
             }
         } catch (IOException e) {
             e.printStackTrace();
-        } finally {
-            bufferedReader.close();
-            reader.close();
         }
         return grids;
     }
 
-    public Target readLSETarget(String opti_file_name) throws IOException {
-        Target target = readTarget(opti_file_name);
-        target.setName("LSE");  // 土地利用适宜性评价：landuse suitability evaluation
-        target.setLuType(4);      // 土地利用适宜性评价是4大类的
-        target.setSuit(0.5);    // 设置土地利用适宜性与土地利用强度的权重
-        target.setType("SE");      // 适宜性目标
-        return target;
-    }
-
-    // TODO 最小规划成本，只支持8大类
-    // 强烈建议：土地利用类型一定要统一
-    public Target readTarget(String filename) throws IOException {
-        Reader reader = null;
-        BufferedReader bufferedReader = null;
-        Target target = null;
-        try {
-            reader = new InputStreamReader(new FileInputStream(filename), "UTF-8");
-            bufferedReader = new BufferedReader(reader);
-            String line = bufferedReader.readLine();
-            double lon, lat;
-            while (line != null) {
-                if (line.startsWith("EOF")) {
-                    break;
-                } else if (line.startsWith("TYPE")) {
-                    // 根据类型确实目标类型,type:1,2,3 分别对应 适宜度、转换成本、价值因子
-                    line = line.split("[,]")[1];
-                    if (line.equals("SE")) {
-                        target = new SETarget();
-                        target.setType("SE");
-                        Suits targetSuits[][] = new Suits[this.gridLength][this.gridLength];
-                        ((SETarget)target).setSuits(targetSuits);
-                    } else if (line.equals("PC")) {
-                        target = new PCTarget();
-                        target.setType("PC");
-                    } else if (line.equals("VL")) {
-                        target = new VLTarget();
-                        target.setType("VL");
-                    }
-                }else if (line.startsWith("NAME")) {
-                    target.setName(line.split("[,]")[1]);
-                } else if (line.startsWith("LAND_USE_TYPE")) {
-                    target.setLuType(Integer.parseInt(line.split("[,]")[1]));
-                } else if (line.startsWith("SUIT")) {
-                    target.setSuit(Double.parseDouble(line.split("[,]")[1]));
-                } else if (line.startsWith("DESC")) {
-                    target.setDescription(line.split("[,]")[1]);
-                } else if (line.startsWith("CONS_LU")) {
-                    int a = Integer.parseInt(line.split("[,]")[1]);
-                    target.considerLuComp = a == 0 ? false : true;
-                } else {
-                    if (target.getType() == "SE") {
-                        // 对适宜度类目标的解析
-                        String[] gridInfo = line.split("[,]");
-                        Suits suits = new Suits();
-                        suits.valMap.put(1, Double.parseDouble(gridInfo[5]) / 100);   // 农用地适宜度
-                        suits.valMap.put(4, Double.parseDouble(gridInfo[6]) / 100);   // 林地适宜度
-                        suits.valMap.put(3, Double.parseDouble(gridInfo[7]) / 100);   // 建设用地适宜度
-                        suits.valMap.put(2, Double.parseDouble(gridInfo[8]) / 100);   // 绿地适宜度
-                        lat = Double.parseDouble(gridInfo[12]);
-                        lon = Double.parseDouble(gridInfo[13]);
-                        Position p = geo2pos(lat, lon);
-                        ((SETarget)target).getSuits()[p.x][p.y] = suits;
-                    } else if (target.getType() == "PC") {
-                        // 对规划成本等转移因子类目标的解析
-                        String changeSuit[] = line.split("[,]");
-                        if (target.getLuType() == 8) {
-                            ((PCTarget) target).getSuits()
-                                    [Utils.lu8toIdx(Integer.parseInt(changeSuit[0]))]
-                                    [Utils.lu8toIdx(Integer.parseInt(changeSuit[1]))] =
-                                    Double.parseDouble(changeSuit[2]);
-                        } else if (target.getLuType() == 4) {
-                            ((PCTarget) target).getSuits()
-                                    [Utils.lu4toIdx(Integer.parseInt(changeSuit[0]))]
-                                    [Utils.lu4toIdx(Integer.parseInt(changeSuit[1]))] =
-                                    Double.parseDouble(changeSuit[2]);
-                        }
-                    } else if (target.getType() == "VL") {
-                        // 对价值类目标的解析
-                        String typeSuit[] = line.split("[,]");
-                        ((VLTarget)target).getSuits().put(Integer.parseInt(typeSuit[0]), Double.parseDouble(typeSuit[1]));
-                    }
-                }
-                line = bufferedReader.readLine();
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            bufferedReader.close();
-            reader.close();
+    public Target raedTarget2(String filename) throws IOException {
+        String file = filename.substring(filename.lastIndexOf("\\") + 1);
+        if (file.startsWith("SE")) {
+            return readSETarget(filename);
+        } else if (file.startsWith("PC")) {
+            return readPCTarget(filename);
+        } else if (file.startsWith("VL")) {
+            return readVLTarget(filename);
         }
-        return target;
+        return null;
     }
 
     public void createImage(String fileLocation) {
@@ -399,11 +271,52 @@ public class InOut {
         return p;
     }
 
-    public void printAnt(Ant a, String filename) throws IOException {
+    public ObjectMapper getObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        return objectMapper;
+    }
+
+    public void printAnt(Ant a, String filename) throws IOException {
+        ObjectMapper objectMapper = getObjectMapper();
         String val = objectMapper.writeValueAsString(a);
         objectMapper.writeValue(new File(filename), val);
+    }
+
+    public SETarget readSETarget(String filename) throws IOException {
+        ObjectMapper objectMapper = getObjectMapper();
+        SETarget target = objectMapper.readValue(new File(filename), SETarget.class);
+        return target;
+    }
+
+    public PCTarget readPCTarget(String filename) throws IOException {
+        ObjectMapper objectMapper = getObjectMapper();
+        PCTarget target = objectMapper.readValue(new File(filename), PCTarget.class);
+        return target;
+    }
+
+    public VLTarget readVLTarget(String filename) throws IOException {
+        ObjectMapper objectMapper = getObjectMapper();
+        VLTarget target = objectMapper.readValue(new File(filename), VLTarget.class);
+        return target;
+    }
+
+    public void printSETarget(SETarget se, String filename) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        objectMapper.writeValue(new File(filename), se);
+    }
+
+    public void printPCTarget(PCTarget se, String filename) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        objectMapper.writeValue(new File(filename), se);
+    }
+
+    public void printVLTarget(VLTarget se, String filename) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        objectMapper.writeValue(new File(filename), se);
     }
 
     public void printTargets(ArrayList<ArrayList<HashMap<String, Double>>> targets, String filename) throws IOException {
@@ -411,5 +324,25 @@ public class InOut {
         objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
         String val = objectMapper.writeValueAsString(targets);
         objectMapper.writeValue(new File(filename), val);
+    }
+
+    public static CellProcessor[] getProcessors() {
+        final CellProcessor[] processors = new CellProcessor[] {
+                new ParseInt(),
+                new ParseDouble(),
+                new ParseDouble(),
+                new ParseInt(),
+                new ParseInt(),
+                new ParseDouble(),
+                new ParseDouble(),
+                new ParseDouble(),
+                new ParseDouble(),
+                new ParseInt(),
+                new ParseDouble(),
+                new ParseDouble(),
+                new ParseDouble(),
+                new ParseDouble()
+        };
+        return processors;
     }
 }

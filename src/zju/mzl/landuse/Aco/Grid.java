@@ -1,7 +1,5 @@
 package zju.mzl.landuse.Aco;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -14,8 +12,8 @@ public class Grid {
     double slope;           // 坡度值
     int dlbm8;
     int dlbm4;
-    int constraint;
-    double encourageFactor;
+    int constrain;
+    double encourageF;
     double height;
     double lon, lat;
     int x, y;
@@ -30,14 +28,29 @@ public class Grid {
         grid.slope = this.slope;
         grid.dlbm8 = this.dlbm8;
         grid.dlbm4 = this.dlbm4;
-        grid.constraint = this.constraint;
-        grid.encourageFactor = this.encourageFactor;
+        grid.constrain = this.constrain;
+        grid.encourageF = this.encourageF;
         grid.height = this.height;
         grid.lon = this.lon;
         grid.lat = this.lat;
         grid.x = this.x;
         grid.y = this.y;
         grid.exp.entrySet().stream().forEach(e -> e.setValue(this.exp.get(e.getKey())));
+        return grid;
+    }
+
+    public static Grid fromSrcGrid(SrcGrid sgd) {
+        Grid grid = new Grid();
+        grid.objectid = sgd.OBJECTID;
+        grid.area = sgd.Shape_Area;
+        grid.slope = sgd.Slope;
+        grid.dlbm8 = sgd.DLBM_8;
+        grid.dlbm4 = sgd.DLBM_4;
+        grid.constrain = sgd.Constrain;
+        grid.encourageF = sgd.encourageF;
+        grid.height = sgd.Height;
+        grid.lon = sgd.Y;
+        grid.lat = sgd.X;
         return grid;
     }
 
@@ -85,8 +98,8 @@ public class Grid {
 
     public double adjustResByEncourageFactor(double res, int type) {
         if (Utils.lu8tolu4(type) == 3) {
-            //return res * (((int)(10 * this.encourageFactor)) / 2);
-            return res * (1 + this.encourageFactor);
+            //return res * (((int)(10 * this.encourageF)) / 2);
+            return res * (1 + this.encourageF);
         } else {
             return res;
         }

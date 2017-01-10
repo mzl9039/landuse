@@ -62,7 +62,8 @@ public abstract class Target implements ITarget {
         row = col = olds.length;
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < col; j++) {
-                if (olds[i][j] != null) {
+                // 当蚂蚁访问过当前格网时，才计算它的目标函数值
+                if (olds[i][j] != null && a.getTabu()[i][j] == 1) {
                     double t = eta(new Position(i, j), a.getTours()[i][j].dlbm8, a.getTours());
                     res = res + t;
                 }

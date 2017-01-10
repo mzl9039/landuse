@@ -31,7 +31,8 @@ public class LUTarget extends Target {
         Grid[][] grids = a.getTours();
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < col; j++) {
-                if (grids[i][j] != null) {
+                // 当前格网已经访问过
+                if (grids[i][j] != null && a.getTabu()[i][j] == 1) {
                     sum += this.luComp(new Position(i, j), grids[i][j].dlbm4, grids);
                 }
             }

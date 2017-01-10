@@ -58,7 +58,7 @@ public class PCTarget extends Target {
         row = col = olds.length;
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < col; j++) {
-                if (olds[i][j] != null && olds[i][j].dlbm8 != a.getTours()[i][j].dlbm8) {
+                if (olds[i][j] != null && olds[i][j].dlbm8 != a.getTours()[i][j].dlbm8 && a.getTabu()[i][j] == 1) {
                     double t = eta(new Position(i, j), a.getTours()[i][j].dlbm8, a.getTours());
                     res = res + t;
                 }
