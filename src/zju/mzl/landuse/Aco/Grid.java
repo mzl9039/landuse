@@ -88,7 +88,7 @@ public class Grid {
         int stat[][] = new int[lu8.length][lu8.length];
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < col; j++) {
-                if (olds[i][j] != null && olds[i][j].dlbm8 != news[i][j].dlbm8) {
+                if (olds[i][j] != null) {
                     stat[Utils.lu8toIdx(olds[i][j].dlbm8)][Utils.lu8toIdx(news[i][j].dlbm8)]++;
                 }
             }

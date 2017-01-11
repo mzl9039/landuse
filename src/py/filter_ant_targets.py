@@ -7,23 +7,16 @@ import os
 import os.path
 
 # 获得目标下所有的targets.json文件
-def dir_walk(rootdir):
-    fls = []
+def dir_walk(rootdir, fls):
     for root, dirs, files in os.walk(rootdir):
         for file in files:
             if (file=="targets.json"):
                 fls.append(os.path.join(root, file))
-        for dir in dirs:
-            fls = fls + dir_walk(os.path.join(rootdir, dir))
-
-    return fls
 
 
 # 存储数据到file
 def store(data, file):
     np.savetxt(file, data, delimiter=',')
-    #with open(file, 'w') as json_file:
-    #   json_file.write(json.dumps(data))
 
 # 从file中提取数据
 def load(file):
@@ -57,8 +50,8 @@ def tarstore(file):
 
 if __name__ == "__main__":
 
-    data = {}
+    files = []
     rootdir = input()
-    files = dir_walk(rootdir)
+    dir_walk(rootdir, files)
     for f in files:
         tarstore(f)

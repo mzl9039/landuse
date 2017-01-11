@@ -21,6 +21,7 @@ public class Opti {
     public ArrayList<Ant> results;
     public ArrayList<Double> lastEanlistAnts;
     public ArrayList<ArrayList<HashMap<String, Double>>> targets = new ArrayList<>();
+    public Grid[][] speGrids;
 
     final int max_grids = 20000;
     final int max_ants = 20;
@@ -56,8 +57,9 @@ public class Opti {
             timer.start_timers();
             Format format = new SimpleDateFormat("yyyyMMdd_hhmmss");
             Date date = new Date();
-            opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.endsWith(".csv"))[0]);
+            opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.equals("grids.csv"))[0]);
             opti.instance = opti.inOut.read_opti();
+            opti.speGrids = opti.inOut.readGrid(path + "\\" + path.list((dir, name) -> name.equals("speGrids.csv"))[0]);
 
             opti.row = opti.col = opti.inOut.gridLength;
             opti.init();
@@ -68,6 +70,7 @@ public class Opti {
             }
             File inDir = new File(opti.inOut.file_path + "\\" + format.format(date));
             inDir.mkdir();
+
             opti.inOut.printAnt(a, inDir.toString() + "\\input.json");
             int loopTime = 0;
             while (curTryTime++ < opti.max_try_times || opti.bestAntSameLoopTime < 15) {
@@ -88,10 +91,17 @@ public class Opti {
             if (!outDir.exists()) {
                 outDir.mkdir();
             }
-            opti.inOut.printAnt(opti.bestAnt, outDir.toString() + "\\ant.json");
+            // 将蚂蚁的最终配置方案单独输出
+            Grid[][] grids = opti.bestAnt.getTours();
+            opti.inOut.printAntGrids(grids, outDir.toString() + "\\ant_grids.json");
+            // 将蚂蚁的地类转换矩阵单独输出
+            int[][] statGrids = Grid.statTransform(opti.instance.getGrids(), opti.bestAnt.getTours(), opti.row, opti.col);
+            opti.inOut.printChangedGrids(statGrids, outDir.toString() + "\\ant_chg.json");
             opti.inOut.printTargets(opti.targets, outDir.toString() + "\\targets.json");
             opti.inOut.printAntGridsImage(opti.bestAnt.getTours(), outDir.toString() + "\\ant.jpg");
-            opti.inOut.printChangedGrids(opti.instance.getGrids(), opti.bestAnt.getTours(), outDir.toString() + "\\ant_chg.jpg");
+            opti.inOut.printChangedGridsImg(opti.instance.getGrids(), opti.bestAnt.getTours(), outDir.toString() + "\\ant_chg.jpg");
+            opti.bestAnt.setTours(null);
+            opti.inOut.printAnt(opti.bestAnt, outDir.toString() + "\\ant.json");
             double timeSpend = timer.elapsed_time();
             System.out.println("程序运行用时：" + timeSpend);
         }
@@ -118,7 +128,7 @@ public class Opti {
             Position p = a.getCurrentPos();
             a.getTabu()[p.x][p.y] = 1;
             a.updated++;
-            updateGridType(a, chooseGridType(a));
+            updateGridType(a, chooseGridType(a, p));
             initPatchNeighbour(a);
         });
     }
@@ -142,7 +152,7 @@ public class Opti {
     // 多目标转为单目标计算局部最优值
     double expInfo(Ant a, int type, Position p) {
         Grid grids[][] = a.getTours();
-        if (a.canConvert(type)) {
+        if (a.canConvert(p, type)) {
             double res = 1.0;
             for (Map.Entry<String, Target> e : instance.getTargets().entrySet()) {
                 // 如果是土地利用强度，则跳过，因为计算其它目标时会考虑
@@ -196,6 +206,7 @@ public class Opti {
         if (bestAnt == null || bestAnt.f < ants.get(0).f) {
             bestAntSameLoopTime = 0;
             bestAnt = ants.get(0);
+            Grid.statTransform(bestAnt.getTours(), instance.getGrids(), row, col);
         } else {
             bestAntSameLoopTime++;
         }
@@ -280,10 +291,10 @@ public class Opti {
     // 更新格网的类型信息，type 为要变成的类型
     public void updateGridType(Ant a, int type) {
         Position p = a.getCurrentPos();
-        if (type != a.getTours()[p.x][p.y].dlbm8 && a.canConvert(type)) {
+        if (type != a.getTours()[p.x][p.y].dlbm8 && a.canConvert(p, type)) {
             Grid gd = a.getTours()[p.x][p.y];
             // 如果类型是耕地或建设用地，则调整蚂蚁内保存的现有耕地面积和建设用地面积
-            if (a.adjustArea(gd.dlbm8, type)) {
+            if (a.adjustArea(gd.dlbm8, type, p)) {
                 gd.dlbm8 = type;
                 gd.dlbm4 = Utils.lu8tolu4(type);
             }
@@ -300,9 +311,11 @@ public class Opti {
 
     // 根据最大概率求格网类型，若最大概率的类型与当前格网类型不一致，
     // 则采用轮盘赌的形式确定一个类型，只在初始化斑块的第一个格网时用到
-    public int chooseGridType(Ant a) {
-        if (a.getCurGrid().dlbm4 == 3 || a.getCurGrid().dlbm8 != 12) {
-            return a.getCurGrid().dlbm8;
+    public int chooseGridType(Ant a, Position p) {
+        // 当前格网是建设用地，且不是未利用地时，建设用地的格网类型不发生变化
+        // 原来为 ||，这是个明显的bug
+        if (a.getGrid(p).dlbm4 == 3 && a.getGrid(p).dlbm8 != 12) {
+            return a.getGrid(p).dlbm8;
         }
         double prob[] = new double[lu8.size()], t[] = new double[lu4.size()];
         double maxProbi = 0.0;
@@ -312,7 +325,7 @@ public class Opti {
                 index++;
                 continue;
             }
-            prob[index] = heuristic(a, ph, type, a.getCurrentPos());
+            prob[index] = heuristic(a, ph, type, p);
             if (prob[index] > maxProbi) {
                 maxProbi = prob[index];
                 maxtype = type;
@@ -324,7 +337,6 @@ public class Opti {
         // 如果概率最大的土地利用类型与原来的土地利用类型(大类相同即可)相同，
         // 则当前处理的土地利用类型就是当前要处理的土地利用类型，
         // 否则采用轮盘赌的形式决定
-        Position p = a.getCurrentPos();
         if (Utils.lu8tolu4(maxtype) == instance.getGrids()[p.x][p.y].dlbm4) {
             return maxtype;
         } else {
@@ -346,7 +358,7 @@ public class Opti {
                     return Utils.lu4tolu8(Utils.Idxtolu4(i));
                 }
             }
-            return a.getCurGrid().dlbm8;
+            return a.getGrid(p).dlbm8;
         }
     }
 
@@ -406,12 +418,13 @@ public class Opti {
     public int nextPatch(Ant a) {
         Position p = randomSelectPatch(a);
         a.patchCenter = p;
+        a.setCurrentPos(p);
         if (p.x == -1 || p.y == -1) {
             a.setStop(1);
             return 1;
         }
         // 选择中心格网要更新为成的土地利用类型
-        int type = chooseGridType(a);
+        int type = chooseGridType(a, p);
         updateGrid(a, p, type);
         neighbours(a);
         return 1;
@@ -426,6 +439,7 @@ public class Opti {
                     .max((m1, m2) -> m1.getValue().compareTo(m2.getValue()))
                     .get();
             Position p = Utils.str2pos(e.getKey());
+            a.setCurrentPos(p);
             if (next(a, p, type)) {
                 neighbours(a);
                 res = 1;
@@ -444,6 +458,9 @@ public class Opti {
 
     // 决定蚂蚁a下一步是否走位置p(判断标准是位置p的type是否是概率最大的)
     public boolean next(Ant a, Position p, int type) {
+        if (speGrids[p.x][p.y] != null) {
+            System.out.print("");
+        }
         if (type == chooseGridTypeByMaxProbility(a, p)) {
             updateGrid(a, p, type);
             return true;

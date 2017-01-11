@@ -1,5 +1,7 @@
 package zju.mzl.landuse.Aco;
 
+import javafx.geometry.Pos;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -9,7 +11,7 @@ import java.util.Map;
 public class Ant {
 
     public Grid getGrid(Position p) {
-        if (p != null) {
+        if (this.tours != null && p != null) {
             return this.tours[p.x][p.y];
         } else {
             return null;
@@ -87,10 +89,9 @@ public class Ant {
     }
 
     // 参数为要转为的类型
-    public boolean canConvert(int to) {
-        Position p = this.currentPos;
+    public boolean canConvert(Position p, int to) {
         if (Utils.canConvert(this.getTours()[p.x][p.y].dlbm8, to, this.getTours()[p.x][p.y])
-                && farmLandCanConvert(to) && consLandCanConvertTo(to) && grassCanConvertedTo(to)) {
+                && farmLandCanConvert(to) && consLandCanConvertTo(to) && grassCanBeConvertedTo(to)) {
             return true;
         }
         return false;
@@ -114,7 +115,7 @@ public class Ant {
     // 可以从其它用地转为建设用地
     private boolean consLandCanConvertTo(int to) {
         Position p = this.currentPos;
-        if (Utils.lu8toIdx(to) == 3) {
+        if (Utils.lu8tolu4(to) == 3) {
             if ((this.getTours()[p.x][p.y].dlbm4 != 3 && this.consLandArea + 1 <= Utils.maxConsArea)
                     || (this.getTours()[p.x][p.y].dlbm4 == 3 && this.getTours()[p.x][p.y].dlbm8 != 11)) {
                 return true;
@@ -126,9 +127,9 @@ public class Ant {
         }
     }
 
-    private boolean grassCanConvertedTo(int to) {
+    private boolean grassCanBeConvertedTo(int to) {
         Position p = this.currentPos;
-        if (Utils.lu8toIdx(to) == 4) {
+        if (Utils.lu8tolu4(to) == 4) {
             if((this.getTours()[p.x][p.y].dlbm4 != 4 && this.grassArea + 1 <= Utils.maxGrassArea)
                     || this.getTours()[p.x][p.y].dlbm4 == 4) {
                 return true;
@@ -140,8 +141,22 @@ public class Ant {
         }
     }
 
-    public boolean adjustArea(int from, int to) {
-        return farmConvert(from, to) && convertToCons(from, to) && convertToGrass(from, to);
+    public boolean adjustArea(int from, int to, Position p) {
+        // 除草地外，其它地类，邻域内至少有一个这种地类，才能进行地类类型改变
+        int dlbm4 = Utils.lu8tolu4(to);
+        boolean result = true;
+        int neighbourToTypeNum = 0;     // p邻域有几个和to相同类型的格网
+        for (int i = p.x-1; i <= p.x + 1; i++) {
+            for (int j = p.y-1; j <= p.y+1; j++) {
+                if ( !(i==p.x && j==p.y) && ((dlbm4 != 2) && this.getTours()[i][j] != null)) {
+                    if (this.getTours()[i][j].dlbm4 == dlbm4) {
+                        neighbourToTypeNum++;
+                    }
+                }
+            }
+        }
+        result = neighbourToTypeNum >= 2 ? true : false;
+        return result && farmConvert(from, to) && convertToCons(from, to) && convertToGrass(from, to);
     }
 
     private boolean farmConvert(int from, int to) {

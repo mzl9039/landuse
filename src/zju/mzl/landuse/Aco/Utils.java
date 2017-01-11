@@ -173,8 +173,6 @@ public class Utils {
     public static boolean canConvert(int from, int to, Grid grid) {
         // 添加自己的限制条件
         if (Utils.lu8tolu4(to) == 3 && to != 20) return false;
-        // 若from 与 to 类型相同，则不做不能转化，这个不能要，因为这会影响到求概率转移函数的问题
-        //if (Utils.lu8tolu4(from) == Utils.lu8tolu4(to)) return false;
         // 若当前为林地，要转为农用地，且坡度大于10,则不做转化
         if (from == 3 && to <= 2 && grid.slope >= 10) return false;
         // TODO： 原来程序有错，所以人为加了限制，若要转为林地或园地，且坡度小于3,则不做转化

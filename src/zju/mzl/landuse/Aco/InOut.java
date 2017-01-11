@@ -54,8 +54,6 @@ public class InOut {
         // 从全路径文件名，获取文件名（不含路径和后缀）
         File file = new File(opti_file_name);
         this.NAME = file.getName().split("[.]")[0];
-        // 从文件名获取格网长度（如200米）
-        this.distance = Integer.parseInt(this.NAME.split("_")[2]);
         this.file_path = file.getParent();
         this.input_target_path = this.file_path + "\\targets";
         this.output_dir = this.file_path + "\\output";
@@ -132,10 +130,12 @@ public class InOut {
     public Grid[][] readGrid(String opti_file_name) throws IOException {
         Grid grids[][] = null;
         try {
-            this.distance = 200;
-            Utils.distance = this.distance;
-            Utils.minFarmArea /= Utils.distance * Utils.distance;
-            Utils.maxConsArea /= Utils.distance * Utils.distance;
+            if (this.distance != 200) {
+                this.distance = 200;
+                Utils.distance = this.distance;
+                Utils.minFarmArea /= Utils.distance * Utils.distance;
+                Utils.maxConsArea /= Utils.distance * Utils.distance;
+            }
             ArrayList<Grid> gds = readGridsCsv(opti_file_name);
 
             this.gridLength = (int) ((this.maxLat - this.minLat) > (this.maxLon - this.minLon)
@@ -240,7 +240,7 @@ public class InOut {
         }
     }
 
-    public void printChangedGrids(Grid olds[][], Grid tours[][], String filename) throws IOException {
+    public void printChangedGridsImg(Grid olds[][], Grid tours[][], String filename) throws IOException {
         int width = 5 * this.gridLength, height = 5 * this.gridLength;
         image = new BufferedImage(width, height, BufferedImage.TYPE_INT_BGR);
         Graphics2D graphics2d = (Graphics2D)image.getGraphics();
@@ -281,6 +281,18 @@ public class InOut {
         ObjectMapper objectMapper = getObjectMapper();
         String val = objectMapper.writeValueAsString(a);
         objectMapper.writeValue(new File(filename), val);
+    }
+
+    public void printAntGrids(Grid[][] grids, String filename) throws IOException {
+        ObjectMapper objectMapper = getObjectMapper();
+        String val = objectMapper.writeValueAsString(grids);
+        objectMapper.writeValue(new File(filename), val);
+    }
+
+    public void printChangedGrids(int[][] changeGrids, String filename) throws IOException {
+        ObjectMapper mapper = getObjectMapper();
+        String val = mapper.writeValueAsString(changeGrids);
+        mapper.writeValue(new File(filename), val);
     }
 
     public SETarget readSETarget(String filename) throws IOException {
