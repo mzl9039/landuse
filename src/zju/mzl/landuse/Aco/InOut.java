@@ -279,20 +279,17 @@ public class InOut {
 
     public void printAnt(Ant a, String filename) throws IOException {
         ObjectMapper objectMapper = getObjectMapper();
-        String val = objectMapper.writeValueAsString(a);
-        objectMapper.writeValue(new File(filename), val);
+        objectMapper.writeValue(new File(filename), a);
     }
 
     public void printAntGrids(Grid[][] grids, String filename) throws IOException {
         ObjectMapper objectMapper = getObjectMapper();
-        String val = objectMapper.writeValueAsString(grids);
-        objectMapper.writeValue(new File(filename), val);
+        objectMapper.writeValue(new File(filename), grids);
     }
 
     public void printChangedGrids(int[][] changeGrids, String filename) throws IOException {
         ObjectMapper mapper = getObjectMapper();
-        String val = mapper.writeValueAsString(changeGrids);
-        mapper.writeValue(new File(filename), val);
+        mapper.writeValue(new File(filename), changeGrids);
     }
 
     public SETarget readSETarget(String filename) throws IOException {
@@ -331,11 +328,10 @@ public class InOut {
         objectMapper.writeValue(new File(filename), se);
     }
 
-    public void printTargets(ArrayList<ArrayList<HashMap<String, Double>>> targets, String filename) throws IOException {
+    public void printTargets(HashMap<Integer, ArrayList<HashMap<String, Double>>> targets, String filename) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
-        String val = objectMapper.writeValueAsString(targets);
-        objectMapper.writeValue(new File(filename), val);
+        objectMapper.writeValue(new File(filename), targets);
     }
 
     public static CellProcessor[] getProcessors() {

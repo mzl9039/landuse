@@ -1,7 +1,5 @@
 package zju.mzl.landuse.Aco;
 
-import javafx.geometry.Pos;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -226,33 +224,39 @@ public class Ant {
         return a;
     }
 
-    // 比较当前的蚂蚁、结果中的蚂蚁的目标优劣情况，返回值情况有：
-    // 返回 1：优于结果中的蚂蚁，进行过替换
-    // 返回 0：与结果中的某只蚂蚁情况相同，未进行替换
-    // 返回 -1：比结果中的所有蚂蚁都要差
-    // 原理采用Pareto最优解进化原理
-    public static int targetCompareTo(Ant a, Ant aInResults) {
-        // 对每个目标，若a与aInResults的该目标相等，则res.0加1，若小于，则res.-1加1；若大于，则res.1加1
-        HashMap<Integer, Integer> res = new HashMap<Integer, Integer>() {
-            {   put(1,0);   put(0,0);   put(-1,0); }
-        };
-        for (Map.Entry<String, Double> e : a.target.entrySet()) {
-            if (e.getValue() > aInResults.target.get(e.getKey())) {
-                res.replace(1, res.get(1) + 1);
-            } else if (e.getValue() < aInResults.target.get(e.getKey())) {
-                res.replace(-1, res.get(-1) + 1);
+    // 原理采用Pareto最优解进化原理比较两个目标，
+    // 若对每个目标都有newTar不小于oldTar,则newTar是oldTar的非支配解，返回1
+    // 若对每个目标都有oldTar不小于newTar，则oldTar是newTar的非支配解，返回-1
+    // 若对不同的目标，newTar和oldTar的大小不一致，则无法确定两者的支配关系
+    // 默认是非支配解，只要newTar有一个目标小于oldTar，则newTar不是非支配解，返回false，否则newTar是非支配解，返回true
+    public static int CompareTargets(HashMap<String, Double> newTar, HashMap<String, Double> oldTar) {
+        // 程序中，
+        int res = 1;
+        int com[] = new int[newTar.size()], index = -1;
+        for (Map.Entry<String, Double> e : newTar.entrySet()) {
+            index++;
+            if (!valPass(e.getValue(), oldTar.get(e.getKey()))) {
+                com[index] = -1;
             } else {
-                res.replace(0, res.get(0) + 1);
+                com[index] = 1;
             }
         }
-        if (res.get(-1) != 0) {
-            return -1;
-        } else {
-            if (res.get(0) == a.target.size()) {
-                return 0;
-            } else {
-                return 1;
+        res = com[0];
+        for (int i = 1; i < com.length; i++) {
+            if (res != com[i]) {
+                res = 0;        // 可以直接break了
             }
+        }
+        return res;
+    }
+
+    // newVal在域值范围内不小于oldVar，则返回true，否则返回false
+    public static boolean valPass(double newVal, double oldVal) {
+        // 加上0.1的域值，否则Pareto解集太多了
+        if (newVal + 0.1 < oldVal) {
+            return false;
+        } else {
+            return true;
         }
     }
 

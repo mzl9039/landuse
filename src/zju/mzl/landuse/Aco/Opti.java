@@ -18,10 +18,10 @@ public class Opti {
     public Problem instance;
     public InOut inOut;
     public Pheromone ph;
-    public ArrayList<Ant> results;
-    public ArrayList<Double> lastEanlistAnts;
     public ArrayList<ArrayList<HashMap<String, Double>>> targets = new ArrayList<>();
+    public HashMap<Integer, ArrayList<HashMap<String, Double>>> tars = new HashMap<>();
     public Grid[][] speGrids;
+
 
     final int max_grids = 20000;
     final int max_ants = 20;
@@ -39,7 +39,6 @@ public class Opti {
         initLu4();
         row = 0;
         col = 0;
-        results = new ArrayList<>();
     }
 
     public static void main(String[] args) throws IOException {
@@ -64,14 +63,14 @@ public class Opti {
             opti.row = opti.col = opti.inOut.gridLength;
             opti.init();
             // 要计算最初的三个目标的值是多少
-            Ant a = opti.initAnt(0);
+/*            Ant a = opti.initAnt(0);
             for (Map.Entry<String, Target> e : opti.instance.getTargets().entrySet()) {
                 a.target.replace(e.getKey(), e.getValue().targetVal2(opti.instance.getGrids(), a));
             }
             File inDir = new File(opti.inOut.file_path + "\\" + format.format(date));
             inDir.mkdir();
 
-            opti.inOut.printAnt(a, inDir.toString() + "\\input.json");
+            opti.inOut.printAnt(a, inDir.toString() + "\\input.json");*/
             int loopTime = 0;
             while (curTryTime++ < opti.max_try_times || opti.bestAntSameLoopTime < 15) {
                 if (opti.simulateAnts() == 0) {
@@ -97,7 +96,7 @@ public class Opti {
             // 将蚂蚁的地类转换矩阵单独输出
             int[][] statGrids = Grid.statTransform(opti.instance.getGrids(), opti.bestAnt.getTours(), opti.row, opti.col);
             opti.inOut.printChangedGrids(statGrids, outDir.toString() + "\\ant_chg.json");
-            opti.inOut.printTargets(opti.targets, outDir.toString() + "\\targets.json");
+            opti.inOut.printTargets(opti.tars, outDir.toString() + "\\targets.json");
             opti.inOut.printAntGridsImage(opti.bestAnt.getTours(), outDir.toString() + "\\ant.jpg");
             opti.inOut.printChangedGridsImg(opti.instance.getGrids(), opti.bestAnt.getTours(), outDir.toString() + "\\ant_chg.jpg");
             opti.bestAnt.setTours(null);
@@ -160,11 +159,6 @@ public class Opti {
                 double t = e.getValue().eta(p, type, grids);
                 res = res * t;
             }
-            // 默认不使用经济鼓励因子
-            /*Grid gd = a.getCurGrid();
-            if (gd.encourageF > 0) {
-                res = gd.adjustResByEncourageFactor(res, type);
-            }*/
             // 记录下配置方案在信息p处类型type的启发信息值
             grids[p.x][p.y].exp.replace(type, res);
             return res;
@@ -186,8 +180,8 @@ public class Opti {
         }
     }
 
-    public void updatePheros(int loopTime) {
-        System.out.println("第" + loopTime + "次更新信息素");
+    // 计算蚂蚁各个目标的目标函数值
+    public void caculateAntTargets(int loopTime) {
         ants.forEach(a -> {
             // 当前的蚂蚁是第几轮迭代时的蚂蚁
             a.looptime = loopTime;
@@ -200,65 +194,100 @@ public class Opti {
             }
             a.StatTours();
         });
+    }
+
+    // 选择出是非支配解的蚂蚁
+    public void selectNonDominatedSolution(int loopTime) {
+        Iterator<Ant> antIter = ants.iterator();
+        while (antIter.hasNext()) {
+            Ant a = antIter.next();
+            if (isAntDominatedByOthers(a)) {
+                if (!tars.containsKey(loopTime)) {
+                    tars.put(loopTime, new ArrayList<>());
+                }
+                tars.get(loopTime).add(a.target);
+            } else {
+                // 当前蚂蚁被支配，删除
+                antIter.remove();
+            }
+        }
+    }
+
+    public void updatePheros(int loopTime) {
+        System.out.println("第" + loopTime + "次更新信息素");
+        caculateAntTargets(loopTime);
+        selectNonDominatedSolution(loopTime);
         // a.f按从大到小排列
         ants.sort((a, b) -> (int)(b.f - a.f));
-        // 选择最优蚂蚁
-        if (bestAnt == null || bestAnt.f < ants.get(0).f) {
-            bestAntSameLoopTime = 0;
-            bestAnt = ants.get(0);
-            Grid.statTransform(bestAnt.getTours(), instance.getGrids(), row, col);
+
+        if (ants.size() > 0) {
+            // 选择最优蚂蚁
+            if (bestAnt == null || bestAnt.f < ants.get(0).f) {
+                bestAntSameLoopTime = 0;
+                bestAnt = ants.get(0);
+                Grid.statTransform(bestAnt.getTours(), instance.getGrids(), row, col);
+            } else {
+                bestAntSameLoopTime++;
+            }
+
+            System.out.println("尝试次数" + loopTime + ";本轮最优蚂蚁目标函数值为: " + ants.get(0).f
+                    +";最优蚂蚁目标函数值为：" + bestAnt.f);
         } else {
             bestAntSameLoopTime++;
+            System.out.println("尝试次数" + loopTime + ";本轮所有蚂蚁都被支配，无最优蚂蚁存在"
+                    +";最优蚂蚁目标函数值为：" + bestAnt.f);
         }
-        // 将本次运行结果与上一次做比较
-        ArrayList<Boolean> com = CompareAntsWithLast();
-        //记录最优秀的5只蚂蚁的各个目标函数值
-        targets.add(RecordEalistAnts());
-        System.out.println("尝试次数" + loopTime + ";本轮最优蚂蚁目标函数值为: " + ants.get(0).f
-                +";最优蚂蚁目标函数值为：" + bestAnt.f);
 
+        // 1、只有非支配解的蚂蚁才能更新信息素，
+        // 2、蚂蚁只更新地类改变了的格网的信息素，不是所有格网的信息素都更新
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < col; j++) {
-                for (int k = 0; k < ants.size(); k++) {
-                    Ant a = ants.get(k);
+                if (instance.getGrids()[i][j] != null) {
                     for (int l = 0; l < lu8.size(); l++) {
-                        ph.updatePheros(new Position(i, j), l, a, loopTime, com.get(l));
+                        // 信息素挥发
+                        ph.pheroVolatilize(new Position(i, j), l);
+                        for (int k = 0; k < ants.size(); k++) {
+                            // 如果蚂蚁在格网p处与原格网的土地利用类型不同，
+                            // 则蚂蚁改变了这个格网的土地利用类型，会释放信息素
+                            if (ants.get(k).getGrid(new Position(i, j)).dlbm4 != instance.getGrids()[i][j].dlbm4) {
+                                ph.updatePheros(new Position(i, j), l, ants.get(k), loopTime);
+                            }
+                        }
                     }
+                }
+
+            }
+        }
+    }
+
+    // 当前蚂蚁与所有解比较,
+    // 如果当前蚂蚁支配某个解，则那个解删除，并将当前蚂蚁加入非支配解集，返回true
+    // 如果当前蚂蚁被某个解支配，则当前蚂蚁被支配，删除当前蚂蚁， 返回false
+    // 如果当前蚂蚁不支配任何解，与不被任何解支配，则作为新的非支配解加入解集，与情况一类似，返回true
+    public boolean isAntDominatedByOthers(Ant a) {
+        HashMap<String, Double> tar = a.target;
+        boolean res = true;
+        for (Map.Entry<Integer, ArrayList<HashMap<String, Double>>> e : tars.entrySet()) {
+            // 第i次迭代中蚁群的所有目标
+            Iterator<HashMap<String, Double>> loop = e.getValue().iterator();
+            while (loop.hasNext()) {
+                // 如果tar是某个目标的非支配解，则把那个目标删除，同时返回true，
+                // 由于tar可能是多个目标的非支配解，故需要遍历所有的Pareto解集
+                int t = Ant.CompareTargets(tar, loop.next());
+                // t == 1 :当前蚂蚁为非支配解；t == -1:当前蚂蚁被支配；t == 0:无法确定支配关系
+                if (t == 1) {
+                    loop.remove();
+                } else if (t == -1) {
+                    res = false;
+                    return res;
+                } else {
+                    continue;
                 }
             }
         }
-        // 将本次蚁群搜索的结果保存下来
-        GetLastEalistAnts();
+        return res;
     }
 
-    public ArrayList<Boolean> CompareAntsWithLast() {
-        ArrayList<Boolean> com = new ArrayList<>();
-        for (int i = 0; i < ants.size(); i++) {
-            if (lastEanlistAnts == null || ants.get(i).f >= lastEanlistAnts.get(i)) {
-                com.add(true);
-            } else {
-                com.add(false);
-            }
-        }
-        return com;
-    }
-
-    public void GetLastEalistAnts() {
-        if (lastEanlistAnts == null) {
-            lastEanlistAnts = new ArrayList<>();
-        }
-        for (int i = 0; i < ants.size(); i++) {
-            lastEanlistAnts.add(ants.get(i).f);
-        }
-    }
-
-    public ArrayList<HashMap<String, Double>> RecordEalistAnts() {
-        ArrayList<HashMap<String, Double>> targ = new ArrayList<>();
-        for (int i = 0; i < ants.size() / 4; i++) {
-            targ.add(ants.get(i).target);
-        }
-        return targ;
-    }
     //////////////////////////////////////////////////////////////
 
     //////////////////////////////////////////////////////////////

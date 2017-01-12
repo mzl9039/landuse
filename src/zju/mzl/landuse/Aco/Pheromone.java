@@ -13,7 +13,7 @@ public class Pheromone {
     int num = 0;
     public double phero[][][];
     // 信息素自适用调节系数阈值
-    final double T1 = 10, T2 = 30, T3 = 50;
+    final double T1 = 10, T2 = 25, T3 = 40;
     final double Q1 = 0.1, Q2 = 0.3, Q3 = 0.6, Q4 = 0.9;
 
     public Pheromone(int row, int col, int luTypeNum) {
@@ -33,25 +33,26 @@ public class Pheromone {
         }
     }
 
+    public void pheroVolatilize(Position p, int type) {
+        phero[p.x][p.y][type] = phero[p.x][p.y][type] <= min_phero ? min_phero : (1 - rho) * phero[p.x][p.y][type];
+    }
+
     // 这里要定义一个自适应信息素函数，并依此调整信息素矩阵在位置 p 处的信息素值
-    public void updatePheros(Position p, int type, Ant a, int loopTime, Boolean com) {
-        if (a.getGrid(p) != null) {
-            phero[p.x][p.y][type] = phero[p.x][p.y][type] <= min_phero ? min_phero : (1 - rho) * phero[p.x][p.y][type];
-            // 蚂蚁释放的信息素，改为由信息素强度和启发信息值的乘积决定，而不是单纯由信息素强度决定
-            // 由于目标函数值太小，故调整目标函数值，使其保持在1<f<10的范围内
-            double t = a.f;
-            while (t < 1) {
-                t *= 10;
-            }
-            // 改为当前蚂蚁的全局目标函数值
-            phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime, com) * t;
-            checkPheromoneLeft(p, type);
+    public void updatePheros(Position p, int type, Ant a, int loopTime) {
+        // 蚂蚁释放的信息素，改为由信息素强度和启发信息值的乘积决定，而不是单纯由信息素强度决定
+        // 由于目标函数值太小，故调整目标函数值，使其保持在1<f<10的范围内
+        double t = a.f;
+        while (t < 1) {
+            t *= 10;
         }
+        // 改为当前蚂蚁的全局目标函数值
+        phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime) * t;
+        checkPheromoneLeft(p, type);
     }
 
     // loopTime：循环次数
     // return: 调节系数
-    public double adaptivePheromoneAdjustmentCoefficient(int loopTime, Boolean com) {
+    public double adaptivePheromoneAdjustmentCoefficient(int loopTime) {
         double res = 0;
         if (loopTime < this.T1) {
             res = this.Q1;
@@ -62,11 +63,7 @@ public class Pheromone {
         } else {
             res = this.Q4;
         }
-        if (com) {
-            return res * 1.5;
-        } else {
-            return  res * 0.5;
-        }
+        return res;
     }
 
     // 保证位置 p 处的信息素保持在一个最大最小值之间，不会超出阈值
