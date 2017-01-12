@@ -7,7 +7,7 @@ public class Pheromone {
     final double min_phero = 0.5;
     final double max_phero = 12;
     final double init_phero = 1;
-    double rho = 0.1;   // 信息素挥发系数，刚开始时挥发系数较小，随着时间推移，挥发系数越来越大，加快收敛
+    double rho = 0.2;   // 信息素挥发系数，刚开始时挥发系数较小，随着时间推移，挥发系数越来越大，加快收敛
     int row = 0;
     int col = 0;
     int num = 0;
@@ -52,7 +52,8 @@ public class Pheromone {
     // loopTime：循环次数
     // return: 调节系数
     public double adaptivePheromoneAdjustmentCoefficient(int loopTime, Boolean com) {
-        double res = 0;
+        return 0.5;
+        /*double res = 0;
         if (loopTime < this.T1) {
             res = this.Q1;
         } else if (loopTime >= this.T1 && loopTime < this.T2) {
@@ -66,7 +67,7 @@ public class Pheromone {
             return res * 1.5;
         } else {
             return  res * 0.5;
-        }
+        }*/
     }
 
     // 保证位置 p 处的信息素保持在一个最大最小值之间，不会超出阈值

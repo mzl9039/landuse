@@ -49,61 +49,89 @@ public class Opti {
             System.out.println("不存在路径" + path);
             System.exit(1);
         }
-        for (int i = 0; i < 10; i++) {
-            int curTryTime = 0;
-            Opti opti = new Opti();
-            System.out.println("最大运行次数:" + opti.max_try_times);
-            Timer timer = new Timer();
-            timer.start_timers();
-            Format format = new SimpleDateFormat("yyyyMMdd_hhmmss");
-            Date date = new Date();
-            opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.equals("grids.csv"))[0]);
-            opti.instance = opti.inOut.read_opti();
-            opti.speGrids = opti.inOut.readGrid(path + "\\" + path.list((dir, name) -> name.equals("speGrids.csv"))[0]);
+        ArrayList<ArrayList<Double>> params = new ArrayList<>();
+        // rho
+        params.add(new ArrayList<Double>(){ {
+            add(0.1);   add(0.2);   add(0.3);   add(0.4);   add(0.5);   add(0.6);   add(0.7);
+        } });
+        // alpha
+        params.add(new ArrayList<Double>() {{
+            add(0.1);   add(0.2);   add(0.3);   add(0.4);   add(0.5);   add(0.6);   add(0.7);
+        }});
+        // beta
+        params.add(new ArrayList<Double>() {{
+            add(0.3);   add(0.5);   add(0.7);   add(0.9);   add(1.0);   add(3.0);   add(5.0);
+        }});
+        Problem p = null;
+        int gridLength = 0;
+        double distance = 0;
+        for (int i = 0; i < 7; i++) {
+            for (int j = 0; j < 3; j++) {
+                int curTryTime = 0;
+                Opti opti = new Opti();
+                System.out.println("最大运行次数:" + opti.max_try_times);
+                Timer timer = new Timer();
+                timer.start_timers();
+                Format format = new SimpleDateFormat("yyyyMMdd_hhmmss");
+                Date date = new Date();
+                opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.equals("grids.csv"))[0]);
+                // 因为instance不会改变，因而只读取一次，不再每次读取浪费时间
+                if (p == null) {
+                    p = opti.inOut.read_opti();
+                    gridLength = opti.inOut.gridLength;
+                    distance = opti.inOut.distance;
+                } else {
+                    opti.instance = p;
+                    opti.row = opti.col = gridLength;
+                    opti.inOut.distance = distance;
+                    opti.inOut.gridLength = gridLength;
+                    opti.inOut.distance = distance;
+                }
 
-            opti.row = opti.col = opti.inOut.gridLength;
-            opti.init();
-            // 要计算最初的三个目标的值是多少
-            Ant a = opti.initAnt(0);
-            for (Map.Entry<String, Target> e : opti.instance.getTargets().entrySet()) {
-                a.target.replace(e.getKey(), e.getValue().targetVal2(opti.instance.getGrids(), a));
-            }
-            File inDir = new File(opti.inOut.file_path + "\\" + format.format(date));
-            inDir.mkdir();
+                opti.init();
+                String name = "";
+                if (j == 0) {
+                    name = "rho";
+                    opti.ph.rho = params.get(j).get(i);
+                } else if (j == 1) {
+                    name = "alpha";
+                    opti.alpha = params.get(j).get(i);
+                } else {
+                    name = "beta";
+                    opti.beta = params.get(j).get(i);
+                }
 
-            opti.inOut.printAnt(a, inDir.toString() + "\\input.json");
-            int loopTime = 0;
-            while (curTryTime++ < opti.max_try_times || opti.bestAntSameLoopTime < 15) {
-                if (opti.simulateAnts() == 0) {
-                    loopTime++;
-                    // 根据循环次数调节信息素挥发因子和启发因子
-                    opti.ph.adaptivePheromoneVolatileCoefficient(loopTime, 0.0);
-                    opti.adaptiveHeuristicFactor(loopTime);
+                int loopTime = 0;
+                while (curTryTime++ < opti.max_try_times || opti.bestAntSameLoopTime < 25) {
+                    if (opti.simulateAnts() == 0) {
+                        loopTime++;
 
-                    opti.updatePheros(loopTime);
-                    if (curTryTime != opti.max_try_times) {
-                        opti.restartAnts(loopTime);
+                        opti.updatePheros(loopTime);
+                        if (curTryTime != opti.max_try_times) {
+                            opti.restartAnts(loopTime);
+                        }
                     }
                 }
+                // 为本次的输出创建目录
+                File outDir = new File(opti.inOut.output_dir + "\\result\\" + name + "\\" + format.format(date));
+                if (!outDir.exists()) {
+                    outDir.mkdir();
+                }
+                // 将蚂蚁的最终配置方案单独输出
+                Grid[][] grids = opti.bestAnt.getTours();
+                opti.inOut.printAntGrids(grids, outDir.toString() + "\\ant_grids.json");
+                // 将蚂蚁的地类转换矩阵单独输出
+                int[][] statGrids = Grid.statTransform(opti.instance.getGrids(), opti.bestAnt.getTours(), opti.row, opti.col);
+                opti.inOut.printChangedGrids(statGrids, outDir.toString() + "\\ant_chg.json");
+                opti.inOut.printTargets(opti.targets, outDir.toString() + "\\targets.json");
+                opti.inOut.printAntGridsImage(opti.bestAnt.getTours(), outDir.toString() + "\\ant.jpg");
+                opti.inOut.printChangedGridsImg(opti.instance.getGrids(), opti.bestAnt.getTours(), outDir.toString() + "\\ant_chg.jpg");
+                opti.bestAnt.setTours(null);
+                opti.inOut.printAnt(opti.bestAnt, outDir.toString() + "\\ant.json");
+                double timeSpend = timer.elapsed_time();
+                System.out.println("程序运行用时：" + timeSpend);
             }
-            // 为本次的输出创建目录
-            File outDir = new File(opti.inOut.output_dir + "\\result\\" + format.format(date));
-            if (!outDir.exists()) {
-                outDir.mkdir();
-            }
-            // 将蚂蚁的最终配置方案单独输出
-            Grid[][] grids = opti.bestAnt.getTours();
-            opti.inOut.printAntGrids(grids, outDir.toString() + "\\ant_grids.json");
-            // 将蚂蚁的地类转换矩阵单独输出
-            int[][] statGrids = Grid.statTransform(opti.instance.getGrids(), opti.bestAnt.getTours(), opti.row, opti.col);
-            opti.inOut.printChangedGrids(statGrids, outDir.toString() + "\\ant_chg.json");
-            opti.inOut.printTargets(opti.targets, outDir.toString() + "\\targets.json");
-            opti.inOut.printAntGridsImage(opti.bestAnt.getTours(), outDir.toString() + "\\ant.jpg");
-            opti.inOut.printChangedGridsImg(opti.instance.getGrids(), opti.bestAnt.getTours(), outDir.toString() + "\\ant_chg.jpg");
-            opti.bestAnt.setTours(null);
-            opti.inOut.printAnt(opti.bestAnt, outDir.toString() + "\\ant.json");
-            double timeSpend = timer.elapsed_time();
-            System.out.println("程序运行用时：" + timeSpend);
+
         }
     }
 
@@ -160,11 +188,6 @@ public class Opti {
                 double t = e.getValue().eta(p, type, grids);
                 res = res * t;
             }
-            // 默认不使用经济鼓励因子
-            /*Grid gd = a.getCurGrid();
-            if (gd.encourageF > 0) {
-                res = gd.adjustResByEncourageFactor(res, type);
-            }*/
             // 记录下配置方案在信息p处类型type的启发信息值
             grids[p.x][p.y].exp.replace(type, res);
             return res;
@@ -177,13 +200,6 @@ public class Opti {
     double heuristic(Ant a, Pheromone ph, int type, Position p) {
         double exp = expInfo(a, type, p);
         return Math.pow(ph.phero[p.x][p.y][Utils.lu8toIdx(type)], alpha) * Math.pow(exp, beta);
-    }
-
-    void adaptiveHeuristicFactor(int looptime) {
-        if (looptime % 5 == 0 && alpha <= 0.5) {
-            alpha += 0.01 * looptime / 5;
-            beta = 1 - alpha;
-        }
     }
 
     public void updatePheros(int loopTime) {
@@ -458,9 +474,6 @@ public class Opti {
 
     // 决定蚂蚁a下一步是否走位置p(判断标准是位置p的type是否是概率最大的)
     public boolean next(Ant a, Position p, int type) {
-        if (speGrids[p.x][p.y] != null) {
-            System.out.print("");
-        }
         if (type == chooseGridTypeByMaxProbility(a, p)) {
             updateGrid(a, p, type);
             return true;
