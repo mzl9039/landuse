@@ -99,8 +99,8 @@ public class Ant {
     private boolean farmLandCanConvert(int to) {
         Position p = this.currentPos;
         if (this.getTours()[p.x][p.y].dlbm4 == 1) {
-            if ((Utils.lu8toIdx(to) != 1 && this.farmArea - 1 >= Utils.minFarmArea)
-                    || Utils.lu8toIdx(to) == 1) {
+            if ((Utils.lu8tolu4(to) != 1 && this.farmArea - 1 >= Utils.minFarmArea)
+                    || Utils.lu8tolu4(to) == 1) {
                 return true;
             } else {
                 return false;
@@ -158,7 +158,7 @@ public class Ant {
     }
 
     private boolean farmConvert(int from, int to) {
-        if (Utils.lu8tolu4(from) == 1 && Utils.lu8toIdx(to) != 1) {
+        if (Utils.lu8tolu4(from) == 1 && Utils.lu8tolu4(to) != 1) {
             if (this.farmArea-1 >= Utils.minFarmArea) {
                 this.farmArea -= 1;
                 return true;
@@ -171,7 +171,7 @@ public class Ant {
     }
 
     private boolean convertToCons(int from, int to) {
-        if (Utils.lu8toIdx(from) != 3 && Utils.lu8tolu4(to) == 3) {
+        if (Utils.lu8tolu4(from) != 3 && Utils.lu8tolu4(to) == 3) {
             if (this.consLandArea+1 <= Utils.maxConsArea) {
                 this.consLandArea += 1;
                 return true;
@@ -184,7 +184,7 @@ public class Ant {
     }
 
     private boolean convertToGrass(int from, int to) {
-        if (Utils.lu8toIdx(from) != 4 && Utils.lu8tolu4(to) == 4) {
+        if (Utils.lu8tolu4(from) != 4 && Utils.lu8tolu4(to) == 4) {
             if (this.grassArea + 1 <= Utils.maxGrassArea) {
                 this.grassArea += 1;
                 return true;

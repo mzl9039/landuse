@@ -68,7 +68,7 @@ public class InOut {
             System.exit(1);
         }
 
-        System.out.println("正在读取文件" + opti_file_name + " ... ");
+        System.out.println("reading file: " + opti_file_name + " ... ");
 
         Grid[][] grids = readGrid(opti_file_name);
         instance.setGrids(grids);
@@ -277,6 +277,11 @@ public class InOut {
         return objectMapper;
     }
 
+    public void printAntTargets(HashMap<String, Double> targets, String filename) throws IOException {
+        ObjectMapper objectMapper = getObjectMapper();
+        objectMapper.writeValue(new File(filename), targets);
+    }
+
     public void printAnt(Ant a, String filename) throws IOException {
         ObjectMapper objectMapper = getObjectMapper();
         objectMapper.writeValue(new File(filename), a);
@@ -353,4 +358,6 @@ public class InOut {
         };
         return processors;
     }
+
+
 }

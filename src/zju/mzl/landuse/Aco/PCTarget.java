@@ -31,12 +31,14 @@ public class PCTarget extends Target {
     public double EtaConsiderLuComp(Position p, int type, Grid grids[][]) {
         Grid gd = grids[p.x][p.y];
         if (gd != null) {
-            //if (this.getName() == "MPC")
+            if (this.getLuType() == 8) {
                 return  this.getSuit() * (1 - this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)])
-                    + this.getComp() * luComp(p, type, grids);
-/*            else
-                return   this.getSuit() * 1 / (this.getSuits()[Utils.lu8toIdx(gd.dlbm8)][Utils.lu8toIdx(type)])
-                        + this.getComp() * luComp(p, type, grids);*/
+                        + this.getComp() * luComp(p, type, grids);
+            } else {
+                type = Utils.lu8tolu4(type);
+                return this.getSuit() * (1 - this.getSuits()[Utils.lu4toIdx(gd.dlbm4)][Utils.lu4toIdx(type)])
+                        + this.getComp() * luComp(p, type, grids);
+            }
         } else {
             return 0;
         }

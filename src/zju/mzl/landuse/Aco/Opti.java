@@ -1,6 +1,8 @@
 package zju.mzl.landuse.Aco;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.Format;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -22,16 +24,13 @@ public class Opti {
     public HashMap<Integer, ArrayList<HashMap<String, Double>>> tars = new HashMap<>();
     public Grid[][] speGrids;
 
-
-    final int max_grids = 20000;
-    final int max_ants = 20;
-    final int max_loop = 80;
-    final int max_try_times = max_loop * max_grids;
+    int max_ants = 30;
+    final int max_try_times = 80;
 
     // alpha 和 beta也可以采用自适应方式来调节，即开始时侧重全局搜索，
     // 后期增加 alpha 的值，以提高收敛速度
-    double alpha = 0.1;
-    double beta = 0.9;
+    double alpha = 0.7;
+    double beta = 0.3;
     ArrayList<Ant> ants;
 
     public Opti() {
@@ -45,93 +44,103 @@ public class Opti {
         String relativePath = System.getProperty("user.dir");
         File path = new File(relativePath + "\\opti");
         if (!path.exists()) {
-            System.out.println("不存在路径" + path);
+            System.out.println("no path" + path);
             System.exit(1);
         }
-        ArrayList<ArrayList<Double>> params = new ArrayList<>();
-        // rho
-        params.add(new ArrayList<Double>(){ {
-            add(0.1);   add(0.2);   add(0.3);   add(0.4);   add(0.5);   add(0.6);   add(0.7);
-        } });
-        // alpha
-        params.add(new ArrayList<Double>() {{
-            add(0.1);   add(0.2);   add(0.3);   add(0.4);   add(0.5);   add(0.6);   add(0.7);
-        }});
-        // beta
-        params.add(new ArrayList<Double>() {{
-            add(0.3);   add(0.5);   add(0.7);   add(0.9);   add(1.0);   add(3.0);   add(5.0);
-        }});
-        Problem p = null;
-        int gridLength = 0;
-        double distance = 0;
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 7; j++) {
-                int curTryTime = 0;
-                Opti opti = new Opti();
-                System.out.println("最大运行次数:" + opti.max_try_times);
-                Timer timer = new Timer();
-                timer.start_timers();
-                Format format = new SimpleDateFormat("yyyyMMdd_hhmmss");
-                Date date = new Date();
-                opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.equals("grids.csv"))[0]);
-                // 因为instance不会改变，因而只读取一次，不再每次读取浪费时间
-                if (p == null) {
-                    p = opti.inOut.read_opti();
-                    gridLength = opti.inOut.gridLength;
-                    distance = opti.inOut.distance;
-                } else {
-                    opti.row = opti.col = gridLength;
-                    opti.inOut.distance = distance;
-                    opti.inOut.gridLength = gridLength;
-                    opti.inOut.distance = distance;
-                }
-                opti.instance = p;
-                opti.row = opti.col = gridLength;
 
-                opti.init();
-                String name = "";
-                if (i == 0) {
-                    name = "rho";
-                    opti.ph.rho = params.get(i).get(j);
-                } else if (i == 1) {
-                    name = "alpha";
-                    opti.alpha = params.get(i).get(j);
-                } else {
-                    name = "beta";
-                    opti.beta = params.get(i).get(j);
-                }
-
-                int loopTime = 0;
-                while (curTryTime++ < opti.max_try_times || opti.bestAntSameLoopTime < 25) {
-                    if (opti.simulateAnts() == 0) {
-                        loopTime++;
-
-                        opti.updatePheros(loopTime);
-                        if (curTryTime != opti.max_try_times) {
-                            opti.restartAnts(loopTime);
-                        }
-                    }
-                }
-                // 为本次的输出创建目录
-                File outDir = new File(opti.inOut.output_dir + "\\result\\" + name + "\\" + format.format(date));
-                if (!outDir.exists()) {
-                    outDir.mkdir();
-                }
-                // 将蚂蚁的最终配置方案单独输出
-                Grid[][] grids = opti.bestAnt.getTours();
-                opti.inOut.printAntGrids(grids, outDir.toString() + "\\ant_grids.json");
-                // 将蚂蚁的地类转换矩阵单独输出
-                int[][] statGrids = Grid.statTransform(opti.instance.getGrids(), opti.bestAnt.getTours(), opti.row, opti.col);
-                opti.inOut.printChangedGrids(statGrids, outDir.toString() + "\\ant_chg.json");
-                opti.inOut.printTargets(opti.tars, outDir.toString() + "\\targets.json");
-                opti.inOut.printAntGridsImage(opti.bestAnt.getTours(), outDir.toString() + "\\ant.jpg");
-                opti.inOut.printChangedGridsImg(opti.instance.getGrids(), opti.bestAnt.getTours(), outDir.toString() + "\\ant_chg.jpg");
-                opti.bestAnt.setTours(null);
-                opti.inOut.printAnt(opti.bestAnt, outDir.toString() + "\\ant.json");
-                double timeSpend = timer.elapsed_time();
-                System.out.println("程序运行用时：" + timeSpend);
+        Date date = new Date();
+        String targetPath = path + "\\targets";
+        File carbin = new File(targetPath + "\\tmp\\PC_CARB.json");
+        File carbout = new File(targetPath + "\\PC_CARB.json");
+        File esvin = new File(targetPath + "\\tmp\\VL_ESV.json");
+        File esvout = new File(targetPath + "\\VL_ESV.json");
+        String type = "ALL";
+        if (type == "PC") {
+            if (!carbout.exists()) {
+                Utils.copyFile(carbin.toString(), carbout.toString());
+            }
+            if (esvout.exists()) {
+                esvout.delete();
+            }
+        } else if (type == "Basic") {
+            if (carbout.exists()) {
+                carbout.delete();
+            }
+            if (esvout.exists()) {
+                esvout.delete();
+            }
+        } else if (type == "VL") {
+            if (!esvout.exists()) {
+                Utils.copyFile(esvin.toString(), esvout.toString());
+            }
+            if (carbout.exists()) {
+                carbout.delete();
+            }
+        } else {
+            type = "ALL";
+            if (!carbout.exists()) {
+                Utils.copyFile(carbin.toString(), carbout.toString());
+            }
+            if (!esvout.exists()) {
+                Utils.copyFile(esvin.toString(), esvout.toString());
             }
         }
+        // 每种多目标体系10次模拟
+        for (int k = 0; k < 1; k++) {
+            int curTryTime = 0;
+            Opti opti = new Opti();
+            System.out.println("biggest run time:" + opti.max_try_times);
+            Timer timer = new Timer();
+            timer.start_timers();
+            Format format = new SimpleDateFormat("yyyyMMdd_hhmmss");
+            opti.inOut = new InOut(path + "\\" + path.list((dir, name) -> name.equals("grids.csv"))[0]);
+            opti.instance = opti.inOut.read_opti();
+            opti.row = opti.col = opti.inOut.gridLength;
+
+            opti.init();
+
+            // 为本次的输出创建目录,name表示是哪个参数，j_k表示哪个值的第几次模拟
+            File outDir = new File(opti.inOut.output_dir + "\\result\\" + format.format(date) + type + "\\" + k + "_time");
+            if (!outDir.exists()) {
+                outDir.mkdirs();
+            }
+            int loopTime = 0;
+            while (loopTime < opti.max_try_times || opti.bestAntSameLoopTime < 20) {
+                if (opti.simulateAnts() == 0) {
+                    loopTime++;
+
+                    opti.updatePheros(loopTime);
+                    printLoopBestAnt(opti, outDir.toString(), loopTime);
+                    opti.adaptiveHeuristicFactor(loopTime);
+                    // 如果最优蚂蚁在10次迭代中没有改变，则增加蚁群规模增加10只
+                    //opti.adaptiveAntNums(opti.bestAntSameLoopTime);
+                    if (curTryTime != opti.max_try_times) {
+                        opti.restartAnts(loopTime);
+                    }
+                }
+            }
+            // 将蚂蚁的最终配置方案单独输出
+            Grid[][] grids = opti.bestAnt.getTours();
+            opti.inOut.printAntGrids(grids, outDir.toString() + "\\ant_grids.json");
+            // 将蚂蚁的地类转换矩阵单独输出
+            int[][] statGrids = Grid.statTransform(opti.instance.getGrids(), opti.bestAnt.getTours(), opti.row, opti.col);
+            opti.inOut.printChangedGrids(statGrids, outDir.toString() + "\\ant_chg.json");
+            opti.inOut.printTargets(opti.tars, outDir.toString() + "\\targets.json");
+            opti.inOut.printAntGridsImage(opti.bestAnt.getTours(), outDir.toString() + "\\ant.jpg");
+            opti.inOut.printChangedGridsImg(opti.instance.getGrids(), opti.bestAnt.getTours(), outDir.toString() + "\\ant_chg.jpg");
+            opti.bestAnt.setTours(null);
+            opti.inOut.printAnt(opti.bestAnt, outDir.toString() + "\\ant.json");
+            double timeSpend = timer.elapsed_time();
+            System.out.println("use time: " + timeSpend);
+        }
+    }
+
+    public static void printLoopBestAnt(Opti opti, String path, int loopTime) throws IOException {
+        File outDir = new File(path + "\\" + loopTime + "_loop");
+        outDir.mkdirs();
+        // 将蚂蚁的地类转换矩阵单独输出
+        opti.inOut.printTargets(opti.tars, outDir.toString() + "\\targets.json");
+        opti.inOut.printAntTargets(opti.bestAnt.target, outDir.toString() + "\\antTarget.json");
     }
 
     public Ant initAnt(int looptime) {
@@ -202,9 +211,15 @@ public class Opti {
     }
 
     void adaptiveHeuristicFactor(int looptime) {
-        if (looptime % 5 == 0 && alpha <= 0.5) {
-            alpha += 0.01 * looptime / 5;
+        if (looptime % 5 == 0 && alpha >= 0.3) {
+            alpha -= 0.01 * looptime / 5;
             beta = 1 - alpha;
+        }
+    }
+
+    void adaptiveAntNums(int bestAntSameLoopTime) {
+        if (bestAntSameLoopTime > 10) {
+            max_ants += 5;
         }
     }
 
@@ -242,28 +257,33 @@ public class Opti {
     }
 
     public void updatePheros(int loopTime) {
-        System.out.println("第" + loopTime + "次更新信息素");
+        System.out.println("The " + loopTime + " time update phere");
         caculateAntTargets(loopTime);
         selectNonDominatedSolution(loopTime);
         // a.f按从大到小排列
-        ants.sort((a, b) -> (int)(b.f - a.f));
+        ants.sort((a, b) -> (int)(a.f - b.f));
 
         if (ants.size() > 0) {
             // 选择最优蚂蚁
-            if (bestAnt == null || bestAnt.f < ants.get(0).f) {
+            int betterAntIdx = getBetterAnt();
+            if (bestAnt == null || betterAntIdx != -1) {
                 bestAntSameLoopTime = 0;
-                bestAnt = ants.get(0);
+                bestAnt = ants.get(betterAntIdx);
                 Grid.statTransform(bestAnt.getTours(), instance.getGrids(), row, col);
             } else {
                 bestAntSameLoopTime++;
             }
-
-            System.out.println("尝试次数" + loopTime + ";本轮最优蚂蚁目标函数值为: " + ants.get(0).f
-                    +";最优蚂蚁目标函数值为：" + bestAnt.f);
+            if (betterAntIdx >= 0) {
+                System.out.println("try " + loopTime + " time; this time best ant target func value is:" + ants.get(betterAntIdx).f
+                        + "; Global best ant target func value is:" + bestAnt.f);
+            } else {
+                System.out.println("try " + loopTime + " time; this time no ant is all targets better than bestAnt"
+                        + "; Global best ant target func value is:" + bestAnt.f);
+            }
         } else {
             bestAntSameLoopTime++;
-            System.out.println("尝试次数" + loopTime + ";本轮所有蚂蚁都被支配，无最优蚂蚁存在"
-                    +";最优蚂蚁目标函数值为：" + bestAnt.f);
+            System.out.println("try " + loopTime + " time; all ants dominated, no best ant"
+                    +"; Global best ant target func value is:" + bestAnt.f);
         }
 
         // 1、只有非支配解的蚂蚁才能更新信息素，
@@ -286,6 +306,20 @@ public class Opti {
 
             }
         }
+    }
+
+    public int getBetterAnt() {
+        if (bestAnt == null) {
+            return 0;
+        }
+        int res = -1;
+        for (int i = 0; i < ants.size(); i++) {
+            if (Ant.CompareTargets(ants.get(i).target, bestAnt.target) == 1) {
+                res = i;
+                break;
+            }
+        }
+        return res;
     }
 
     // 当前蚂蚁与所有解比较,

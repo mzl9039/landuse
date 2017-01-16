@@ -42,8 +42,12 @@ public class Pheromone {
         // 蚂蚁释放的信息素，改为由信息素强度和启发信息值的乘积决定，而不是单纯由信息素强度决定
         // 由于目标函数值太小，故调整目标函数值，使其保持在1<f<10的范围内
         double t = a.f;
-        while (t < 0.1) {
+        // 每次的释放量在1e-3到1e-4之间
+        while (t < 1e-4) {
             t *= 10;
+        }
+        while (t > 1e-3) {
+            t /= 10;
         }
         // 改为当前蚂蚁的全局目标函数值
         phero[p.x][p.y][type] += adaptivePheromoneAdjustmentCoefficient(loopTime) * t;
@@ -53,9 +57,7 @@ public class Pheromone {
     // loopTime：循环次数
     // return: 调节系数
     public double adaptivePheromoneAdjustmentCoefficient(int loopTime) {
-        return 1;
-        /*double res = 0;
-
+        double res = 0;
         if (loopTime < this.T1) {
             res = this.Q1;
         } else if (loopTime >= this.T1 && loopTime < this.T2) {
@@ -65,7 +67,7 @@ public class Pheromone {
         } else {
             res = this.Q4;
         }
-        return res;*/
+        return res;
     }
 
     // 保证位置 p 处的信息素保持在一个最大最小值之间，不会超出阈值

@@ -2,56 +2,58 @@
 # -*- coding: utf-8 -*-
 import json
 import numpy as np
-import time
 import os
 import os.path
+import matplotlib.pyplot as plt
 
-# 获得目标下所有的targets.json文件
-def dir_walk(rootdir, fls):
+
+# 获得目标下所有的antTarget.json文件
+def dir_walk(rootdir):
     for root, dirs, files in os.walk(rootdir):
-        for file in files:
-            if (file=="targets.json"):
-                fls.append(os.path.join(root, file))
+        for dir in dirs:
+            if dir.endswith("_time"):
+                fls = []
+                getTargFiles(os.path.join(root, dir), fls)
+                tarstore(os.path.join(root, dir), fls)
+
+
+def getTargFiles(d, fls):
+    for root, dirs, files in os.walk(d):
+        fls += [os.path.join(root, file) for file in files if file.endswith("antTarget.json")]
+    return fls.sort(key=lambda f: int([s.split('_')[0] for s in f.split('/') if s.endswith("loop")][0].split('_')[0]))
 
 
 # 存储数据到file
 def store(data, file):
-    np.savetxt(file, data, delimiter=',')
+    if not os.path.exists(file):
+        np.savetxt(file, data, delimiter=',')
+
 
 # 从file中提取数据
 def load(file):
     with open(file) as json_file:
-        data = json.load(json_file)
-        # load进来的data是字符串，要转为json对象，需要再次loads
-        return json.loads(data)
+        return json.load(json_file)
 
-def tarlist(data):
-    if (len(data)>0 and len(data[0])>0):
-        t = data[0][0]
-        return list(t.keys())
 
-#将data数据按目标类型提取保存
-def tarstore(file):
-    data = load(file)
-    tars = tarlist(data)
-    for i in range(len(tars)):
-        first, five = [], []
-        for j in range(len(data)):
-            t = []
-            for k in range(len(data[j])):
-                t.append(data[j][k][tars[i]])
-                if (k == 0):
-                    first.append(data[j][k][tars[i]])
-            five.append(t)
+# 将data数据按目标类型提取保存
+def tarstore(rootdir, files):
+    data = [load(f) for f in files]
+    tars = list(data[0].keys())
+    for tar in tars:
+        s = [d[tar] for d in data]
+        store(s, os.path.join(rootdir, tar + ".csv"))
+        x = list(range(len(s)))
+        imgstore(tar, os.path.join(rootdir, tar + ".jpg"), x, s)
 
-        filedir = os.path.dirname(file)
-        store(first, os.path.join(filedir, tars[i] + "1.csv"))
-        store(five, os.path.join(filedir, tars[i] + "5.csv"))
+def imgstore(tar, file, x, y):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(x, y, 'o-', label=tar)
+    ax.legend(loc='upper left')
+    plt.savefig(file)
+    plt.close()
+
 
 if __name__ == "__main__":
-
-    files = []
     rootdir = input()
-    dir_walk(rootdir, files)
-    for f in files:
-        tarstore(f)
+    dir_walk(rootdir)
